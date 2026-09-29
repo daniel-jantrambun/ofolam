@@ -11,10 +11,11 @@
     <title>Ofolam</title>
     <script>
       // Apply the saved theme before first paint to avoid a flash of the wrong theme
+      var theme = null;
       try {
-        var t = localStorage.getItem("ofolam.theme");
-        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
-      } catch (e) {}
+        theme = localStorage.getItem("ofolam.theme");
+      } catch {}
+      if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
     </script>
   </head>
   <body>

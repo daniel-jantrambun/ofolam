@@ -1,15 +1,7 @@
 import { Hono, type MiddlewareHandler } from "hono";
+import { ACTIVITY_TTL_S, activityKey, cached, LIST_TTL_S, listKey } from "./cache";
 import { randomToken, sha256 } from "./crypto";
-import { ACTIVITY_TTL_S, LIST_TTL_S, activityKey, cached, listKey } from "./cache";
-import {
-  type Env,
-  STRAVA_BASE,
-  StravaError,
-  exchangeToken,
-  now,
-  saveTokens,
-  stravaGet,
-} from "./strava";
+import { type Env, exchangeToken, now, STRAVA_BASE, StravaError, saveTokens, stravaGet } from "./strava";
 
 type AppEnv = { Bindings: Env; Variables: { athleteId: number } };
 
@@ -65,7 +57,11 @@ app.get("/auth/callback", async (c) => {
 
   const t = await exchangeToken(c.env, { code, grant_type: "authorization_code" });
   if (!t.athlete) return c.redirect("/?auth=error");
-  await saveTokens(c.env, t.athlete.id, t, { firstname: t.athlete.firstname, country: t.athlete.country, scope });
+  await saveTokens(c.env, t.athlete.id, t, {
+    firstname: t.athlete.firstname,
+    country: t.athlete.country,
+    scope,
+  });
 
   const sessionToken = randomToken();
   await c.env.DB.batch([
@@ -74,10 +70,7 @@ app.get("/auth/callback", async (c) => {
       t.athlete.id,
       now(),
     ),
-    c.env.DB.prepare("UPDATE oauth_states SET session_token = ? WHERE state = ?").bind(
-      sessionToken,
-      state,
-    ),
+    c.env.DB.prepare("UPDATE oauth_states SET session_token = ? WHERE state = ?").bind(sessionToken, state),
   ]);
 
   return c.redirect("/?auth=done");
@@ -118,7 +111,9 @@ app.use("/auth/logout", auth);
 
 app.post("/auth/logout", async (c) => {
   const token = c.req.header("Authorization")!.slice(7);
-  await c.env.DB.prepare("DELETE FROM sessions WHERE id_hash = ?").bind(await sha256(token)).run();
+  await c.env.DB.prepare("DELETE FROM sessions WHERE id_hash = ?")
+    .bind(await sha256(token))
+    .run();
   return c.json({ ok: true });
 });
 
@@ -159,7 +154,11 @@ app.get("/activities", async (c) => {
   const page = Math.max(1, Number(c.req.query("page") ?? 1) || 1);
   const athleteId = c.get("athleteId");
   const list = await cached(c.env, listKey(athleteId, page), LIST_TTL_S, async () => {
-    const raw = await stravaGet<StravaActivity[]>(c.env, athleteId, `/athlete/activities?per_page=20&page=${page}`);
+    const raw = await stravaGet<StravaActivity[]>(
+      c.env,
+      athleteId,
+      `/athlete/activities?per_page=20&page=${page}`,
+    );
     return raw.map(toActivity);
   });
   return c.json(list);

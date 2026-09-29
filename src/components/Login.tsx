@@ -1,5 +1,5 @@
-import { startLogin } from "../lib/api";
 import { LangSwitcher, useI18n } from "../i18n";
+import { startLogin } from "../lib/api";
 import { ThemeSwitcher } from "../theme";
 
 export default function Login({ notice }: { notice?: string }) {
@@ -19,7 +19,14 @@ export default function Login({ notice }: { notice?: string }) {
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        <circle cx="18" cy="150" r="10" fill="var(--color-background)" stroke="currentColor" strokeWidth="6" />
+        <circle
+          cx="18"
+          cy="150"
+          r="10"
+          fill="var(--color-background)"
+          stroke="currentColor"
+          strokeWidth="6"
+        />
         <circle cx="302" cy="30" r="11" fill="currentColor" />
       </svg>
 
@@ -35,10 +42,7 @@ export default function Login({ notice }: { notice?: string }) {
           </p>
         )}
         {/* Strava brand guidelines: replace with the official "Connect with Strava" button */}
-        <button
-          onClick={startLogin}
-          className="btn btn-accent w-full min-h-14 text-lg"
-        >
+        <button type="button" onClick={startLogin} className="btn btn-accent w-full min-h-14 text-lg">
           {t.login.connect}
         </button>
       </div>

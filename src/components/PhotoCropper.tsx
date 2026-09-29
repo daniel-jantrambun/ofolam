@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useI18n } from "../i18n";
-import { ZOOM_MAX, ZOOM_MIN, ZOOM_STEP, clamp, visibleFrame, type Crop, type Size } from "../lib/crop";
+import { type Crop, clamp, type Size, visibleFrame, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "../lib/crop";
 import type { Photo } from "../lib/render";
 
 type Props = {
@@ -75,7 +75,7 @@ export default function PhotoCropper({ photo, target, value, onChange }: Props) 
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
         >
-          <canvas ref={previewRef} className="block max-h-[220px] max-w-full" aria-hidden="true" />
+          <canvas ref={previewRef} className="block max-h-[220px] max-w-full" />
           {/* Visible region: everything outside is dimmed */}
           <div
             className="pointer-events-none absolute border border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]"
@@ -101,11 +101,7 @@ export default function PhotoCropper({ photo, target, value, onChange }: Props) 
           <span className="flex items-center gap-2 text-muted">
             {zoomLabel}×
             {value.zoom > 1 && (
-              <button
-                type="button"
-                onClick={() => onChange({ ...value, zoom: 1 })}
-                className="link"
-              >
+              <button type="button" onClick={() => onChange({ ...value, zoom: 1 })} className="link">
                 {t.editor.resetZoom}
               </button>
             )}

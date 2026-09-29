@@ -12,6 +12,7 @@ export default function CornerPicker({ value, onChange }: { value: Corner; onCha
         const on = value === c;
         return (
           <button
+            type="button"
             key={c}
             onClick={() => onChange(c)}
             aria-label={t.editor.corners[c]}

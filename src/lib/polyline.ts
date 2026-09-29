@@ -46,10 +46,15 @@ export function fitToBoxWithTransform(
   if (points.length === 0) return { points: [], transform: null };
   const projected = points.map(project);
 
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    maxX = -Infinity,
+    minY = Infinity,
+    maxY = -Infinity;
   for (const [x, y] of projected) {
-    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
   }
 
   const spanX = maxX - minX || 1e-9;
@@ -61,7 +66,10 @@ export function fitToBoxWithTransform(
   // y is flipped: north at the top
   const transform = { scale, tx: offX - minX * scale, ty: offY + maxY * scale };
   return {
-    points: projected.map(([x, y]) => [transform.scale * x + transform.tx, transform.ty - transform.scale * y]),
+    points: projected.map(([x, y]) => [
+      transform.scale * x + transform.tx,
+      transform.ty - transform.scale * y,
+    ]),
     transform,
   };
 }

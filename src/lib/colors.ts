@@ -45,7 +45,15 @@ export const ROUTE_COLORS = [
 
 /** Fill presets for the "Light" and "Night" backgrounds; the first one is the default. */
 export const LIGHT_TINTS = [palette.topo, "#F5EFE0", "#F1E7D8", "#E8EEF5", "#F6E8E8", "#E6F1EA"] as const;
-export const NIGHT_TINTS = [palette.night, palette.ink, "#1C1C1E", "#0B1F3A", "#10261F", "#241A2E", "#2A1418"] as const;
+export const NIGHT_TINTS = [
+  palette.night,
+  palette.ink,
+  "#1C1C1E",
+  "#0B1F3A",
+  "#10261F",
+  "#241A2E",
+  "#2A1418",
+] as const;
 
 /** Relative luminance (sRGB, 0..1) of a #RRGGBB color. */
 export function luminance(hex: string): number {

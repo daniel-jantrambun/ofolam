@@ -53,7 +53,7 @@ function keys(): string[] {
 
 function evictOldActivities() {
   const entries = keys()
-    .filter((k) => k.startsWith(PREFIX + "activity."))
+    .filter((k) => k.startsWith(`${PREFIX}activity.`))
     .map((k) => ({ k, savedAt: read<unknown>(k.slice(PREFIX.length))?.savedAt ?? 0 }))
     .sort((a, b) => b.savedAt - a.savedAt);
   for (const { k } of entries.slice(MAX_ACTIVITY_ENTRIES)) localStorage.removeItem(k);

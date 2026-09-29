@@ -1,7 +1,7 @@
+import type { Dictionary } from "../i18n/en";
 import type { Activity } from "./api";
 import { contrastText, palette } from "./colors";
-import { decodePolyline, fitToBoxWithTransform } from "./polyline";
-import { MAP_ATTRIBUTION, drawMap, type MapStyle } from "./tiles";
+import { type Crop, DEFAULT_CROP, visibleFrame } from "./crop";
 import {
   formatDate,
   formatDistance,
@@ -10,8 +10,8 @@ import {
   formatPaceOrSpeed,
   sportLabel,
 } from "./format";
-import type { Dictionary } from "../i18n/en";
-import { DEFAULT_CROP, visibleFrame, type Crop } from "./crop";
+import { decodePolyline, fitToBoxWithTransform } from "./polyline";
+import { drawMap, MAP_ATTRIBUTION, type MapStyle } from "./tiles";
 
 export type Format = "story" | "post" | "square" | "landscape";
 export type Background = "transparent" | "night" | "topo" | "photo" | "map";
@@ -134,7 +134,13 @@ export type RenderHooks = {
 };
 
 /** Draws `img` like CSS `object-fit: cover`, framed by the crop (focal point + zoom). */
-function drawCover(ctx: CanvasRenderingContext2D, img: Photo, w: number, h: number, crop: Crop = DEFAULT_CROP) {
+function drawCover(
+  ctx: CanvasRenderingContext2D,
+  img: Photo,
+  w: number,
+  h: number,
+  crop: Crop = DEFAULT_CROP,
+) {
   const iw = img.width;
   const ih = img.height;
   const f = visibleFrame({ w: iw, h: ih }, { w, h }, crop);
@@ -175,15 +181,13 @@ const BODY = FONTS.sans;
 /** Weight actually used: the override when set, else the block's default. */
 const weightOf = (style: TextStyle, defaultWeight: number) =>
   style.bold === null ? defaultWeight : style.bold ? 700 : 400;
-const familyOf = (style: TextStyle, defaultFamily: string) => (style.font ? FONTS[style.font] : defaultFamily);
+const familyOf = (style: TextStyle, defaultFamily: string) =>
+  style.font ? FONTS[style.font] : defaultFamily;
 const sizeOf = (style: TextStyle) => Math.min(TEXT_SIZE_MAX, Math.max(TEXT_SIZE_MIN, style.size ?? 1));
 
 /** Call before the first render: the canvas does not wait for web fonts. */
 export async function ensureFonts() {
-  await Promise.all([
-    document.fonts.load(`700 96px ${DISPLAY}`),
-    document.fonts.load(`500 32px ${BODY}`),
-  ]);
+  await Promise.all([document.fonts.load(`700 96px ${DISPLAY}`), document.fonts.load(`500 32px ${BODY}`)]);
 }
 
 function statFor(a: Activity, key: StatKey, t: Dictionary): { label: string; value: string; unit: string } {
@@ -239,7 +243,8 @@ export function renderCard(
   canvas.height = h;
   const ctx = canvas.getContext("2d")!;
   const isMap = opts.background === "map" && !!a.polyline;
-  const tint = opts.background === "topo" || opts.background === "night" ? opts.bgTint[opts.background] : null;
+  const tint =
+    opts.background === "topo" || opts.background === "night" ? opts.bgTint[opts.background] : null;
   const bg = isMap
     ? { fill: MAP_TEXT[opts.mapStyle].fill, text: MAP_TEXT[opts.mapStyle].text }
     : tint
@@ -269,7 +274,12 @@ export function renderCard(
   ctx.textBaseline = "alphabetic";
   const texts: Partial<Record<TextKey, Box>> = {};
   const styleOf = (key: TextKey): TextStyle => opts.texts[key] ?? DEFAULT_TEXT_STYLE;
-  const toBox = (x: number, y: number, bw: number, bh: number): Box => ({ x: x / w, y: y / h, w: bw / w, h: bh / h });
+  const toBox = (x: number, y: number, bw: number, bh: number): Box => ({
+    x: x / w,
+    y: y / h,
+    w: bw / w,
+    h: bh / h,
+  });
 
   // Each element is prepared as a closure so it can be drawn in the user's stacking
   // order, after the automatic layout has been measured in the natural reading order.
@@ -313,7 +323,9 @@ export function renderCard(
       withShadow(() => {
         ctx.font = titleFont;
         ctx.fillStyle = titleStyle.color ?? bg.text;
-        lines.forEach((line, i) => ctx.fillText(line, tx, ty + 60 * k + lineH * i));
+        lines.forEach((line, i) => {
+          ctx.fillText(line, tx, ty + 60 * k + lineH * i);
+        });
         const widest = Math.max(...lines.map((l) => ctx.measureText(l).width));
         texts.title = toBox(tx, ty, widest, lineH * lines.length + 8 * k);
       }),
@@ -366,7 +378,13 @@ export function renderCard(
   const autoBox: RouteBox = { x: P / w, y: top / h, w: (w - 2 * P) / w, h: (bottom - top - 24) / h };
   const routeBox = opts.routeBox ?? autoBox;
   const order = layerOrder(opts.order);
-  const result: RenderResult = { complete: true, routeBox, texts, order, brandBox: { x: 0, y: 0, w: 0, h: 0 } };
+  const result: RenderResult = {
+    complete: true,
+    routeBox,
+    texts,
+    order,
+    brandBox: { x: 0, y: 0, w: 0, h: 0 },
+  };
 
   // The route is fitted even when hidden: a map background follows its box.
   let transform: import("./polyline").MercatorTransform | null = null;
@@ -385,10 +403,15 @@ export function renderCard(
     const pts = fit.points;
     transform = fit.transform;
     if (pts.length >= 2) {
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      let minX = Infinity,
+        maxX = -Infinity,
+        minY = Infinity,
+        maxY = -Infinity;
       for (const [x, y] of pts) {
-        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
       }
       result.routeBox = {
         x: (minX - pad) / w,

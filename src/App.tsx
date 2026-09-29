@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { claimPendingLogin, getMe, getSession, hasPendingLogin, logout } from "./lib/api";
-import { localeFromCountry, useI18n } from "./i18n";
-import Login from "./components/Login";
 import ActivityList from "./components/ActivityList";
 import Editor from "./components/Editor";
+import Login from "./components/Login";
+import { localeFromCountry, useI18n } from "./i18n";
+import { claimPendingLogin, getMe, getSession, hasPendingLogin, logout } from "./lib/api";
 
 const AUTH_KEYS = ["denied", "expired", "scope", "error"] as const;
 type AuthKey = (typeof AUTH_KEYS)[number];
@@ -40,7 +40,11 @@ export default function App() {
   if (!session) {
     // Callback opened in the iOS in-app browser: the session is waiting for the PWA
     const doneElsewhere = authParam === "done" && !hasPendingLogin();
-    const notice = doneElsewhere ? t.login.doneElsewhere : isAuthKey(authParam) ? t.auth[authParam] : undefined;
+    const notice = doneElsewhere
+      ? t.login.doneElsewhere
+      : isAuthKey(authParam)
+        ? t.auth[authParam]
+        : undefined;
     return <Login notice={notice} />;
   }
 
