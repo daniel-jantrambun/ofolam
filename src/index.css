@@ -77,7 +77,9 @@ body {
   background: var(--color-background);
   color: var(--color-foreground);
   -webkit-tap-highlight-color: transparent;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 #root {
@@ -113,22 +115,67 @@ body {
     font-weight: 600;
     line-height: 1;
     border: 1px solid transparent;
-    transition: transform 0.08s ease, background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
-    &:active { transform: scale(0.98); }
-    &:disabled { opacity: 0.45; pointer-events: none; }
+    transition:
+      transform 0.08s ease,
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      opacity 0.15s ease;
+    &:active {
+      transform: scale(0.98);
+    }
+    &:disabled {
+      opacity: 0.45;
+      pointer-events: none;
+    }
   }
-  .btn-sm { min-height: 2.25rem; padding: 0 0.875rem; font-size: 0.875rem; border-radius: 0.75rem; }
-  .btn-primary { background: var(--color-primary); color: var(--color-primary-foreground); }
-  .btn-primary:hover { filter: brightness(1.08); }
-  .btn-accent { background: var(--color-accent); color: var(--color-accent-foreground); }
-  .btn-accent:hover { filter: brightness(1.06); }
-  .btn-secondary { background: var(--color-secondary); color: var(--color-secondary-foreground); }
-  .btn-outline { background: var(--color-surface); color: var(--color-foreground); border-color: var(--color-border); }
-  .btn-outline:hover { border-color: var(--color-muted); }
-  .btn-ghost { background: transparent; color: var(--color-muted); }
-  .btn-ghost:hover { background: var(--color-surface-2); color: var(--color-foreground); }
-  .link { color: var(--color-muted); text-decoration: underline; text-underline-offset: 4px; }
-  .link:hover { color: var(--color-foreground); }
+  .btn-sm {
+    min-height: 2.25rem;
+    padding: 0 0.875rem;
+    font-size: 0.875rem;
+    border-radius: 0.75rem;
+  }
+  .btn-primary {
+    background: var(--color-primary);
+    color: var(--color-primary-foreground);
+  }
+  .btn-primary:hover {
+    filter: brightness(1.08);
+  }
+  .btn-accent {
+    background: var(--color-accent);
+    color: var(--color-accent-foreground);
+  }
+  .btn-accent:hover {
+    filter: brightness(1.06);
+  }
+  .btn-secondary {
+    background: var(--color-secondary);
+    color: var(--color-secondary-foreground);
+  }
+  .btn-outline {
+    background: var(--color-surface);
+    color: var(--color-foreground);
+    border-color: var(--color-border);
+  }
+  .btn-outline:hover {
+    border-color: var(--color-muted);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-muted);
+  }
+  .btn-ghost:hover {
+    background: var(--color-surface-2);
+    color: var(--color-foreground);
+  }
+  .link {
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .link:hover {
+    color: var(--color-foreground);
+  }
 
   /* Toggle chips */
   .chip {
@@ -141,9 +188,14 @@ body {
     background: var(--color-surface);
     color: var(--color-foreground);
     font-weight: 500;
-    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      color 0.15s ease;
   }
-  .chip:hover { border-color: var(--color-muted); }
+  .chip:hover {
+    border-color: var(--color-muted);
+  }
   .chip[aria-pressed="true"],
   .chip-on {
     background: var(--color-secondary);
@@ -170,9 +222,14 @@ body {
     border-radius: 0.625rem;
     font-weight: 500;
     color: var(--color-muted);
-    transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+    transition:
+      background-color 0.15s ease,
+      color 0.15s ease,
+      box-shadow 0.15s ease;
   }
-  .seg-item:hover { color: var(--color-foreground); }
+  .seg-item:hover {
+    color: var(--color-foreground);
+  }
   .seg-item[aria-checked="true"],
   .seg-item[aria-pressed="true"] {
     background: var(--color-surface);
@@ -195,13 +252,19 @@ body {
     width: 2.5rem;
     border-radius: 999px;
     border: 2px solid var(--color-border);
-    transition: transform 0.08s ease, box-shadow 0.15s ease;
+    transition:
+      transform 0.08s ease,
+      box-shadow 0.15s ease;
   }
-  .swatch:hover { transform: scale(1.06); }
+  .swatch:hover {
+    transform: scale(1.06);
+  }
   .swatch[aria-pressed="true"],
   .swatch-on {
     border-color: var(--color-secondary);
-    box-shadow: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-secondary);
+    box-shadow:
+      0 0 0 2px var(--color-background),
+      0 0 0 4px var(--color-secondary);
   }
 
   .notice {
@@ -219,7 +282,9 @@ body {
     box-shadow: var(--shadow-float);
   }
 
-  input[type="range"].range { accent-color: var(--color-primary); }
+  input[type="range"].range {
+    accent-color: var(--color-primary);
+  }
 }
 
 /* Checkerboard to preview sticker transparency */
@@ -231,5 +296,9 @@ body {
     linear-gradient(45deg, transparent 75%, var(--color-border) 75%),
     linear-gradient(-45deg, transparent 75%, var(--color-border) 75%);
   background-size: 24px 24px;
-  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+  background-position:
+    0 0,
+    0 12px,
+    12px -12px,
+    -12px 0;
 }

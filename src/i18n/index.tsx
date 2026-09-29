@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { en, type Dictionary } from "./en";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { type Dictionary, en } from "./en";
 import { fr } from "./fr";
 
 export type Locale = "en" | "fr";
@@ -28,7 +28,15 @@ function writeLocaleCookie(locale: Locale) {
  * Strava does not expose a language preference, only the athlete's country.
  * Map French-speaking countries to `fr`, everything else to the default.
  */
-const FRENCH_COUNTRIES = new Set(["france", "belgium", "belgique", "switzerland", "suisse", "luxembourg", "monaco"]);
+const FRENCH_COUNTRIES = new Set([
+  "france",
+  "belgium",
+  "belgique",
+  "switzerland",
+  "suisse",
+  "luxembourg",
+  "monaco",
+]);
 export function localeFromCountry(country: string | null | undefined): Locale | null {
   if (!country) return null;
   return FRENCH_COUNTRIES.has(country.trim().toLowerCase()) ? "fr" : DEFAULT_LOCALE;
@@ -81,6 +89,7 @@ export function LangSwitcher({ className = "" }: { className?: string }) {
     <div role="radiogroup" aria-label={t.lang.label} className={`seg text-xs md:text-sm ${className}`}>
       {LOCALES.map((l) => (
         <button
+          type="button"
           key={l}
           role="radio"
           aria-checked={locale === l}

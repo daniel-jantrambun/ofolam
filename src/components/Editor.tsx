@@ -1,37 +1,37 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiError, getActivity, type Activity } from "../lib/api";
+import { useI18n } from "../i18n";
+import type { Dictionary } from "../i18n/en";
+import { type Activity, type ApiError, getActivity } from "../lib/api";
+import { LIGHT_TINTS, NIGHT_TINTS, ROUTE_COLORS } from "../lib/colors";
+import { DEFAULT_CROP } from "../lib/crop";
 import { usesPace } from "../lib/format";
 import {
-  renderCard,
-  ensureFonts,
-  loadPhoto,
-  releasePhoto,
-  SIZES,
   type Background,
-  DEFAULT_TEXT_STYLE,
-  TEXT_SIZE_MAX,
-  TEXT_SIZE_MIN,
   type Box,
   type CardOptions,
+  DEFAULT_TEXT_STYLE,
+  ensureFonts,
   type Format,
   type LayerKey,
+  layerOrder,
+  loadPhoto,
   type Photo,
   type RenderResult,
-  layerOrder,
+  releasePhoto,
+  renderCard,
+  SIZES,
   type StatKey,
+  TEXT_SIZE_MAX,
+  TEXT_SIZE_MIN,
   type TextKey,
 } from "../lib/render";
 import { canShareFiles, canvasToBlob, copyImage, downloadBlob, shareImage } from "../lib/share";
-import { LIGHT_TINTS, NIGHT_TINTS, ROUTE_COLORS } from "../lib/colors";
-import { useI18n } from "../i18n";
-import PhotoCropper from "./PhotoCropper";
-import CardOverlay, { type BoxChange, type OverlayItem } from "./CardOverlay";
-import TextStylePanel from "./TextStylePanel";
-import ColorPicker from "./ColorPicker";
-import { DEFAULT_CROP } from "../lib/crop";
-import type { Dictionary } from "../i18n/en";
 import type { MapStyle } from "../lib/tiles";
+import CardOverlay, { type BoxChange, type OverlayItem } from "./CardOverlay";
+import ColorPicker from "./ColorPicker";
 import CornerPicker from "./CornerPicker";
+import PhotoCropper from "./PhotoCropper";
+import TextStylePanel from "./TextStylePanel";
 
 type Props = { activityId: number; onBack: () => void; onSessionLost: () => void };
 
@@ -102,7 +102,12 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
 
   // Every photo loaded in this session stays usable (undo may bring it back); all are released on unmount
   const photos = useRef(new Set<Photo>());
-  useEffect(() => () => photos.current.forEach((ph) => releasePhoto(ph)), []);
+  useEffect(
+    () => () => {
+      for (const ph of photos.current) releasePhoto(ph);
+    },
+    [],
+  );
 
   // ---- Undo / redo ----
   // Committed snapshots of `opts`. A change is committed once it has been stable for a
@@ -164,7 +169,12 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
       const target = e.target as HTMLElement | null;
-      if (target && /^(input|textarea|select)$/i.test(target.tagName) && (target as HTMLInputElement).type !== "range") return;
+      if (
+        target &&
+        /^(input|textarea|select)$/i.test(target.tagName) &&
+        (target as HTMLInputElement).type !== "range"
+      )
+        return;
       e.preventDefault();
       if (e.shiftKey) redo();
       else undo();
@@ -177,16 +187,15 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
     ensureFonts().finally(() => setFontsReady(true));
     const { cached, fresh } = getActivity(activityId);
     if (cached) setActivity(cached);
-    fresh
-      .then(setActivity)
-      .catch((e: ApiError) => {
-        if (e.status === 401) return onSessionLost();
-        if (!cached) setError(e);
-      });
+    fresh.then(setActivity).catch((e: ApiError) => {
+      if (e.status === 401) return onSessionLost();
+      if (!cached) setError(e);
+    });
   }, [activityId, onSessionLost]);
 
   // Render + precomputed blob: navigator.share must fire without waiting inside the click
   useEffect(() => {
+    void tileTick; // a new tile arrived: redraw with it
     const canvas = canvasRef.current;
     if (!canvas || !activity || !fontsReady) return;
     setDrawn(renderCard(canvas, activity, opts, { onTileLoaded: () => setTileTick((n) => n + 1) }));
@@ -248,7 +257,9 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   };
   // Items follow the stacking order (deepest first) so the topmost element wins the tap
   const overlayItems: OverlayItem[] = [
-    ...(drawn?.order ?? []).filter((key) => boxes[key]).map((key) => ({ key, box: boxes[key]!, resizable: key === "route" })),
+    ...(drawn?.order ?? [])
+      .filter((key) => boxes[key])
+      .map((key) => ({ key, box: boxes[key]!, resizable: key === "route" })),
     // The mention is always on top and only moves between corners
     ...(drawn ? [{ key: "brand", box: drawn.brandBox, fixed: true }] : []),
   ];
@@ -302,7 +313,9 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
 
   /** Aligns every selected element on one edge or axis of the selection's bounding box. */
   const alignSelection = (how: "left" | "centerX" | "right" | "top" | "centerY" | "bottom") => {
-    const group = selection.map((k) => ({ key: k, box: boxes[k as LayerKey] })).filter((g): g is { key: string; box: Box } => !!g.box);
+    const group = selection
+      .map((k) => ({ key: k, box: boxes[k as LayerKey] }))
+      .filter((g): g is { key: string; box: Box } => !!g.box);
     if (group.length < 2) return;
     const x0 = Math.min(...group.map((g) => g.box.x));
     const x1 = Math.max(...group.map((g) => g.box.x + g.box.w));
@@ -359,17 +372,49 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 pb-28 sm:px-5 lg:pb-6">
       <div className="mb-4 flex items-center justify-between">
-        <button onClick={onBack} className="link">
+        <button type="button" onClick={onBack} className="link">
           {t.editor.back}
         </button>
         <div className="flex items-center gap-2">
-          <button onClick={undo} disabled={!canUndo} className="btn btn-outline btn-sm" title={t.editor.undo} aria-label={t.editor.undo}>
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <button
+            type="button"
+            onClick={undo}
+            disabled={!canUndo}
+            className="btn btn-outline btn-sm"
+            title={t.editor.undo}
+            aria-label={t.editor.undo}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <path d="M9 14L4 9l5-5 M4 9h10a6 6 0 010 12h-3" />
             </svg>
           </button>
-          <button onClick={redo} disabled={!canRedo} className="btn btn-outline btn-sm" title={t.editor.redo} aria-label={t.editor.redo}>
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <button
+            type="button"
+            onClick={redo}
+            disabled={!canRedo}
+            className="btn btn-outline btn-sm"
+            title={t.editor.redo}
+            aria-label={t.editor.redo}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <path d="M15 14l5-5-5-5 M20 9H10a6 6 0 000 12h3" />
             </svg>
           </button>
@@ -386,7 +431,9 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
         {/* Desktop: vertical nav on the left */}
         <EditorNav tab={tab} onChange={setTab} orientation="vertical" className="hidden self-start lg:flex" />
 
-        <div className={`relative self-start overflow-hidden rounded-[var(--radius-card)] border border-border shadow-[var(--shadow-card)] ${opts.background === "transparent" ? "checker" : ""}`}>
+        <div
+          className={`relative self-start overflow-hidden rounded-[var(--radius-card)] border border-border shadow-[var(--shadow-card)] ${opts.background === "transparent" ? "checker" : ""}`}
+        >
           <canvas
             ref={canvasRef}
             className="block h-auto w-full"
@@ -396,6 +443,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
           {!activity && !error && <p className="p-6 text-muted">{t.editor.loading}</p>}
           {activity && drawn && (
             <CardOverlay
+              label={t.editor.preview}
               items={overlayItems}
               selected={selection}
               onSelect={onSelectLayer}
@@ -409,264 +457,281 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
 
           {tab === "layout" && (
             <>
-          <Field label={t.editor.format}>
-            <Segmented options={formats(t)} value={opts.format} onChange={(v) => set("format", v)} />
-          </Field>
+              <Field label={t.editor.format}>
+                <Segmented options={formats(t)} value={opts.format} onChange={(v) => set("format", v)} />
+              </Field>
 
-
-          <Field label={t.editor.background}>
-            <Segmented options={backgrounds(t)} value={opts.background} onChange={(v) => set("background", v)} />
-            {opts.background === "transparent" && <p className="mt-2 text-sm text-muted">{t.editor.transparentHint}</p>}
-            {(opts.background === "topo" || opts.background === "night") && (
-              <div className="mt-3">
-                <ColorPicker
-                  presets={opts.background === "topo" ? LIGHT_TINTS : NIGHT_TINTS}
-                  value={opts.bgTint[opts.background] ?? (opts.background === "topo" ? LIGHT_TINTS[0] : NIGHT_TINTS[0])}
-                  onChange={(c) => set("bgTint", { ...opts.bgTint, [opts.background]: c })}
+              <Field label={t.editor.background}>
+                <Segmented
+                  options={backgrounds(t)}
+                  value={opts.background}
+                  onChange={(v) => set("background", v)}
                 />
-              </div>
-            )}
-            {opts.background === "map" && (
-              <div className="mt-3 space-y-2">
-                <Segmented options={mapStyles(t)} value={opts.mapStyle} onChange={(v) => set("mapStyle", v)} />
-                <p className="text-sm text-muted">{activity?.polyline ? t.editor.mapHint : t.editor.mapNoRoute}</p>
-              </div>
-            )}
-            {opts.background === "photo" && (
-              <div className="mt-3 flex flex-wrap items-center gap-3">
-                <input ref={fileRef} type="file" accept="image/*" onChange={onPickPhoto} className="sr-only" />
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  className="btn btn-outline"
-                >
-                  {opts.photo ? t.editor.changePhoto : t.editor.choosePhoto}
-                </button>
-                {opts.photo && !photoEditing && (
-                  <button onClick={() => setPhotoEditing(true)} className="link text-sm">
-                    {t.editor.cropEdit}
-                  </button>
+                {opts.background === "transparent" && (
+                  <p className="mt-2 text-sm text-muted">{t.editor.transparentHint}</p>
                 )}
-                {opts.photo && (
-                  <button onClick={onRemovePhoto} className="link text-sm">
-                    {t.editor.removePhoto}
-                  </button>
+                {(opts.background === "topo" || opts.background === "night") && (
+                  <div className="mt-3">
+                    <ColorPicker
+                      presets={opts.background === "topo" ? LIGHT_TINTS : NIGHT_TINTS}
+                      value={
+                        opts.bgTint[opts.background] ??
+                        (opts.background === "topo" ? LIGHT_TINTS[0] : NIGHT_TINTS[0])
+                      }
+                      onChange={(c) => set("bgTint", { ...opts.bgTint, [opts.background]: c })}
+                    />
+                  </div>
                 )}
-                {!opts.photo && <p className="text-sm text-muted">{t.editor.photoStaysLocal}</p>}
-              </div>
-            )}
-          </Field>
+                {opts.background === "map" && (
+                  <div className="mt-3 space-y-2">
+                    <Segmented
+                      options={mapStyles(t)}
+                      value={opts.mapStyle}
+                      onChange={(v) => set("mapStyle", v)}
+                    />
+                    <p className="text-sm text-muted">
+                      {activity?.polyline ? t.editor.mapHint : t.editor.mapNoRoute}
+                    </p>
+                  </div>
+                )}
+                {opts.background === "photo" && (
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={onPickPhoto}
+                      className="sr-only"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileRef.current?.click()}
+                      className="btn btn-outline"
+                    >
+                      {opts.photo ? t.editor.changePhoto : t.editor.choosePhoto}
+                    </button>
+                    {opts.photo && !photoEditing && (
+                      <button type="button" onClick={() => setPhotoEditing(true)} className="link text-sm">
+                        {t.editor.cropEdit}
+                      </button>
+                    )}
+                    {opts.photo && (
+                      <button type="button" onClick={onRemovePhoto} className="link text-sm">
+                        {t.editor.removePhoto}
+                      </button>
+                    )}
+                    {!opts.photo && <p className="text-sm text-muted">{t.editor.photoStaysLocal}</p>}
+                  </div>
+                )}
+              </Field>
 
-
-          {opts.background === "photo" && opts.photo && photoEditing && (
-            <Field label={t.editor.focalPoint}>
-              <PhotoCropper
-                photo={opts.photo}
-                target={SIZES[opts.format]}
-                value={opts.photoCrop}
-                onChange={(photoCrop) => set("photoCrop", photoCrop)}
-              />
-              <button
-                onClick={() => setPhotoEditing(false)}
-                className="btn btn-secondary mt-3"
-              >
-                {t.editor.cropSave}
-              </button>
-            </Field>
-          )}
-
+              {opts.background === "photo" && opts.photo && photoEditing && (
+                <Field label={t.editor.focalPoint}>
+                  <PhotoCropper
+                    photo={opts.photo}
+                    target={SIZES[opts.format]}
+                    value={opts.photoCrop}
+                    onChange={(photoCrop) => set("photoCrop", photoCrop)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPhotoEditing(false)}
+                    className="btn btn-secondary mt-3"
+                  >
+                    {t.editor.cropSave}
+                  </button>
+                </Field>
+              )}
             </>
           )}
 
           {tab === "elements" && (
-            <>
-          <Field label={t.editor.elements}>
-            <div className="flex flex-wrap gap-2">
-              {activity?.polyline && (
+            <Field label={t.editor.elements}>
+              <div className="flex flex-wrap gap-2">
+                {activity?.polyline && (
+                  <Pill
+                    on={opts.showRoute}
+                    onClick={() => {
+                      set("showRoute", !opts.showRoute);
+                      if (opts.showRoute) setSelection((s) => s.filter((k) => k !== "route"));
+                    }}
+                  >
+                    {t.editor.elementRoute}
+                  </Pill>
+                )}
                 <Pill
-                  on={opts.showRoute}
+                  on={opts.showName}
                   onClick={() => {
-                    set("showRoute", !opts.showRoute);
-                    if (opts.showRoute) setSelection((s) => s.filter((k) => k !== "route"));
+                    set("showName", !opts.showName);
+                    if (opts.showName) setSelection((s) => s.filter((k) => k !== "title"));
                   }}
                 >
-                  {t.editor.elementRoute}
+                  {t.editor.showTitleName}
                 </Pill>
-              )}
-              <Pill
-                on={opts.showName}
-                onClick={() => {
-                  set("showName", !opts.showName);
-                  if (opts.showName) setSelection((s) => s.filter((k) => k !== "title"));
-                }}
-              >
-                {t.editor.showTitleName}
-              </Pill>
-              <Pill
-                on={opts.showMeta}
-                onClick={() => {
-                  set("showMeta", !opts.showMeta);
-                  if (opts.showMeta) setSelection((s) => s.filter((k) => k !== "meta"));
-                }}
-              >
-                {t.editor.showTitleMeta}
-              </Pill>
-              {STATS.map((s) => (
                 <Pill
-                  key={s.id}
-                  on={opts.stats.includes(s.id)}
+                  on={opts.showMeta}
                   onClick={() => {
-                    toggleStat(s.id);
-                    if (opts.stats.includes(s.id)) setSelection((sel) => sel.filter((k) => k !== `stat:${s.id}`));
+                    set("showMeta", !opts.showMeta);
+                    if (opts.showMeta) setSelection((s) => s.filter((k) => k !== "meta"));
                   }}
                 >
-                  {s.label}
+                  {t.editor.showTitleMeta}
                 </Pill>
-              ))}
-            </div>
-          </Field>
-
-            </>
+                {STATS.map((s) => (
+                  <Pill
+                    key={s.id}
+                    on={opts.stats.includes(s.id)}
+                    onClick={() => {
+                      toggleStat(s.id);
+                      if (opts.stats.includes(s.id))
+                        setSelection((sel) => sel.filter((k) => k !== `stat:${s.id}`));
+                    }}
+                  >
+                    {s.label}
+                  </Pill>
+                ))}
+              </div>
+            </Field>
           )}
 
           {tab === "style" && (
             <>
-          {activity && selection.length === 0 && (
-            <p className="text-sm text-muted">
-              {t.editor.textHint} {t.editor.multiHint}
-            </p>
-          )}
-
-          {selection.length > 1 && (
-            <Field label={t.editor.multiSelected(selection.length)}>
-              <AlignButtons onAlign={alignSelection} />
-              <div className="mt-4">
-                <p className="field-label">{t.editor.color}</p>
-                <ColorPicker value={commonColor} onChange={setSelectionColor} allowAuto={selectedTexts.length > 0} />
-              </div>
-              {selectedTexts.length > 0 && (
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <label htmlFor="multi-size" className="text-muted">
-                      {t.editor.textSize}
-                    </label>
-                    <span className="flex items-center gap-2 text-muted">
-                      {Math.round(commonSize * 100)}%
-                      {selectedTexts.some((k) => styleOfKey(k).size !== null) && (
-                        <button onClick={() => setSelectionSize(null)} className="link">
-                          {t.editor.resetZoom}
-                        </button>
-                      )}
-                    </span>
-                  </div>
-                  <input
-                    id="multi-size"
-                    type="range"
-                    min={TEXT_SIZE_MIN}
-                    max={TEXT_SIZE_MAX}
-                    step={0.05}
-                    value={commonSize}
-                    onChange={(e) => setSelectionSize(Number.parseFloat(e.target.value))}
-                    className="range w-full"
-                  />
-                </div>
+              {activity && selection.length === 0 && (
+                <p className="text-sm text-muted">
+                  {t.editor.textHint} {t.editor.multiHint}
+                </p>
               )}
-              <button onClick={() => setSelection([])} className="btn btn-outline mt-3">
-                {t.editor.routeDone}
-              </button>
-            </Field>
-          )}
 
-          {selectedText && (
-            <Field label={`${t.editor.textLayout} · ${textLabel(selectedText)}`}>
-              <LayerButtons
-                up={canMoveUp(selectedText)}
-                down={canMoveDown(selectedText)}
-                onMove={(d) => moveLayer(selectedText, d)}
-              />
-              <CenterButtons onCenter={(axis) => centerLayer(selectedText, axis)} />
-              <TextStylePanel
-                value={opts.texts[selectedText] ?? DEFAULT_TEXT_STYLE}
-                onChange={(style) => set("texts", { ...opts.texts, [selectedText]: style })}
-                onDone={() => setSelected(null)}
-              />
-            </Field>
-          )}
-
-          {selected === "brand" && (
-            <Field label={t.editor.brandCorner}>
-              <CornerPicker value={opts.brandCorner} onChange={(c) => set("brandCorner", c)} />
-              <button
-                onClick={() => setSelected(null)}
-                className="btn btn-outline mt-3"
-              >
-                {t.editor.routeDone}
-              </button>
-            </Field>
-          )}
-
-          {selected === "route" && drawnBox && (
-            <Field label={t.editor.routeLayout}>
-              <p className="mb-2 text-sm text-muted">{t.editor.routeHint}</p>
-              <LayerButtons up={canMoveUp("route")} down={canMoveDown("route")} onMove={(d) => moveLayer("route", d)} />
-              <CenterButtons onCenter={(axis) => centerLayer("route", axis)} />
-              <p className="mb-2 text-sm text-muted">{t.editor.routeColor}</p>
-              <div className="mb-4">
-                <ColorPicker value={opts.routeColor} onChange={(c) => c && set("routeColor", c)} />
-              </div>
-              <div className="flex items-center gap-3">
-                <label htmlFor="route-size" className="text-sm text-muted">
-                  {t.editor.routeSize}
-                </label>
-                <input
-                  id="route-size"
-                  type="range"
-                  min={0.1}
-                  max={1.5}
-                  step={0.01}
-                  value={drawnBox.w}
-                  onChange={(e) => {
-                    const w = Number.parseFloat(e.target.value);
-                    const h = drawnBox.h * (w / drawnBox.w);
-                    const cx = drawnBox.x + drawnBox.w / 2;
-                    const cy = drawnBox.y + drawnBox.h / 2;
-                    set("routeBox", { x: cx - w / 2, y: cy - h / 2, w, h });
-                  }}
-                  className="range flex-1"
-                />
-                {opts.routeBox && (
-                  <button onClick={() => set("routeBox", null)} className="link text-sm">
-                    {t.editor.routeAuto}
+              {selection.length > 1 && (
+                <Field label={t.editor.multiSelected(selection.length)}>
+                  <AlignButtons onAlign={alignSelection} />
+                  <div className="mt-4">
+                    <p className="field-label">{t.editor.color}</p>
+                    <ColorPicker
+                      value={commonColor}
+                      onChange={setSelectionColor}
+                      allowAuto={selectedTexts.length > 0}
+                    />
+                  </div>
+                  {selectedTexts.length > 0 && (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between text-sm">
+                        <label htmlFor="multi-size" className="text-muted">
+                          {t.editor.textSize}
+                        </label>
+                        <span className="flex items-center gap-2 text-muted">
+                          {Math.round(commonSize * 100)}%
+                          {selectedTexts.some((k) => styleOfKey(k).size !== null) && (
+                            <button type="button" onClick={() => setSelectionSize(null)} className="link">
+                              {t.editor.resetZoom}
+                            </button>
+                          )}
+                        </span>
+                      </div>
+                      <input
+                        id="multi-size"
+                        type="range"
+                        min={TEXT_SIZE_MIN}
+                        max={TEXT_SIZE_MAX}
+                        step={0.05}
+                        value={commonSize}
+                        onChange={(e) => setSelectionSize(Number.parseFloat(e.target.value))}
+                        className="range w-full"
+                      />
+                    </div>
+                  )}
+                  <button type="button" onClick={() => setSelection([])} className="btn btn-outline mt-3">
+                    {t.editor.routeDone}
                   </button>
-                )}
-              </div>
-              <button
-                onClick={() => setSelected(null)}
-                className="btn btn-outline mt-3"
-              >
-                {t.editor.routeDone}
-              </button>
-            </Field>
-          )}
+                </Field>
+              )}
 
+              {selectedText && (
+                <Field label={`${t.editor.textLayout} · ${textLabel(selectedText)}`}>
+                  <LayerButtons
+                    up={canMoveUp(selectedText)}
+                    down={canMoveDown(selectedText)}
+                    onMove={(d) => moveLayer(selectedText, d)}
+                  />
+                  <CenterButtons onCenter={(axis) => centerLayer(selectedText, axis)} />
+                  <TextStylePanel
+                    value={opts.texts[selectedText] ?? DEFAULT_TEXT_STYLE}
+                    onChange={(style) => set("texts", { ...opts.texts, [selectedText]: style })}
+                    onDone={() => setSelected(null)}
+                  />
+                </Field>
+              )}
+
+              {selected === "brand" && (
+                <Field label={t.editor.brandCorner}>
+                  <CornerPicker value={opts.brandCorner} onChange={(c) => set("brandCorner", c)} />
+                  <button type="button" onClick={() => setSelected(null)} className="btn btn-outline mt-3">
+                    {t.editor.routeDone}
+                  </button>
+                </Field>
+              )}
+
+              {selected === "route" && drawnBox && (
+                <Field label={t.editor.routeLayout}>
+                  <p className="mb-2 text-sm text-muted">{t.editor.routeHint}</p>
+                  <LayerButtons
+                    up={canMoveUp("route")}
+                    down={canMoveDown("route")}
+                    onMove={(d) => moveLayer("route", d)}
+                  />
+                  <CenterButtons onCenter={(axis) => centerLayer("route", axis)} />
+                  <p className="mb-2 text-sm text-muted">{t.editor.routeColor}</p>
+                  <div className="mb-4">
+                    <ColorPicker value={opts.routeColor} onChange={(c) => c && set("routeColor", c)} />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label htmlFor="route-size" className="text-sm text-muted">
+                      {t.editor.routeSize}
+                    </label>
+                    <input
+                      id="route-size"
+                      type="range"
+                      min={0.1}
+                      max={1.5}
+                      step={0.01}
+                      value={drawnBox.w}
+                      onChange={(e) => {
+                        const w = Number.parseFloat(e.target.value);
+                        const h = drawnBox.h * (w / drawnBox.w);
+                        const cx = drawnBox.x + drawnBox.w / 2;
+                        const cy = drawnBox.y + drawnBox.h / 2;
+                        set("routeBox", { x: cx - w / 2, y: cy - h / 2, w, h });
+                      }}
+                      className="range flex-1"
+                    />
+                    {opts.routeBox && (
+                      <button type="button" onClick={() => set("routeBox", null)} className="link text-sm">
+                        {t.editor.routeAuto}
+                      </button>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => setSelected(null)} className="btn btn-outline mt-3">
+                    {t.editor.routeDone}
+                  </button>
+                </Field>
+              )}
             </>
           )}
 
           {tab === "share" && (
-            <>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            {canShareFiles() && (
-              <button onClick={onShare} disabled={!activity} className="btn btn-primary">
-                {t.editor.share}
+            <div className="flex flex-col gap-3 sm:flex-row">
+              {canShareFiles() && (
+                <button type="button" onClick={onShare} disabled={!activity} className="btn btn-primary">
+                  {t.editor.share}
+                </button>
+              )}
+              <button type="button" onClick={onCopy} disabled={!activity} className="btn btn-outline">
+                {t.editor.copy}
               </button>
-            )}
-            <button onClick={onCopy} disabled={!activity} className="btn btn-outline">
-              {t.editor.copy}
-            </button>
-            <button onClick={onDownload} disabled={!activity} className="btn btn-ghost">
-              {t.editor.download}
-            </button>
-          </div>
-            </>
+              <button type="button" onClick={onDownload} disabled={!activity} className="btn btn-ghost">
+                {t.editor.download}
+              </button>
+            </div>
           )}
         </section>
       </div>
@@ -680,7 +745,10 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
       />
 
       {toast && (
-        <p role="status" className="toast fixed inset-x-5 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md lg:bottom-5">
+        <p
+          role="status"
+          className="toast fixed inset-x-5 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md lg:bottom-5"
+        >
           {toast}
         </p>
       )}
@@ -721,17 +789,30 @@ function EditorNav({
   const { t } = useI18n();
   const vertical = orientation === "vertical";
   return (
-    <nav aria-label={t.editor.navLabel} className={`${vertical ? "card flex-col gap-1 p-2" : "justify-around px-2 pt-2"} ${className}`}>
+    <nav
+      aria-label={t.editor.navLabel}
+      className={`${vertical ? "card flex-col gap-1 p-2" : "justify-around px-2 pt-2"} ${className}`}
+    >
       {TABS.map((item) => {
         const on = tab === item.id;
         return (
           <button
+            type="button"
             key={item.id}
             onClick={() => onChange(item.id)}
             aria-current={on ? "page" : undefined}
             className={`flex flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs font-medium transition-colors ${vertical ? "w-20" : "flex-1"} ${on ? "bg-secondary text-secondary-foreground" : "text-muted hover:bg-surface-2 hover:text-foreground"}`}
           >
-            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              className="h-6 w-6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <path d={item.icon} />
             </svg>
             {t.editor.tabs[item.id]}
@@ -755,25 +836,48 @@ function LayerButtons({
   const { t } = useI18n();
   const cls = "btn btn-outline btn-sm";
   const icon = (d: string) => (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d={d} />
     </svg>
   );
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
       <span className="text-sm text-muted">{t.editor.layer}</span>
-      <button onClick={() => onMove("top")} disabled={!up} className={cls} title={t.editor.layerFront} aria-label={t.editor.layerFront}>
+      <button
+        type="button"
+        onClick={() => onMove("top")}
+        disabled={!up}
+        className={cls}
+        title={t.editor.layerFront}
+        aria-label={t.editor.layerFront}
+      >
         {icon("M12 19V7 M6 13l6-6 6 6 M6 4h12")}
       </button>
-      <button onClick={() => onMove(1)} disabled={!up} className={cls}>
+      <button type="button" onClick={() => onMove(1)} disabled={!up} className={cls}>
         {icon("M12 19V5 M6 11l6-6 6 6")}
         {t.editor.layerUp}
       </button>
-      <button onClick={() => onMove(-1)} disabled={!down} className={cls}>
+      <button type="button" onClick={() => onMove(-1)} disabled={!down} className={cls}>
         {icon("M12 5v14 M6 13l6 6 6-6")}
         {t.editor.layerDown}
       </button>
-      <button onClick={() => onMove("bottom")} disabled={!down} className={cls} title={t.editor.layerBack} aria-label={t.editor.layerBack}>
+      <button
+        type="button"
+        onClick={() => onMove("bottom")}
+        disabled={!down}
+        className={cls}
+        title={t.editor.layerBack}
+        aria-label={t.editor.layerBack}
+      >
         {icon("M12 5v12 M6 11l6 6 6-6 M6 20h12")}
       </button>
     </div>
@@ -805,13 +909,23 @@ function AlignButtons({ onAlign }: { onAlign: (how: (typeof ALIGNS)[number]["how
             const icon = ALIGNS.find((a) => a.how === how)!.icon;
             return (
               <button
+                type="button"
                 key={how}
                 onClick={() => onAlign(how)}
                 className="btn btn-outline btn-sm"
                 title={t.editor.aligns[how]}
                 aria-label={t.editor.aligns[how]}
               >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
                   <path d={icon} />
                 </svg>
               </button>
@@ -830,10 +944,10 @@ function CenterButtons({ onCenter }: { onCenter: (axis: "x" | "y") => void }) {
   return (
     <div className="mb-4 flex items-center gap-2">
       <span className="text-sm text-muted">{t.editor.align}</span>
-      <button onClick={() => onCenter("x")} className={cls}>
+      <button type="button" onClick={() => onCenter("x")} className={cls}>
         {t.editor.centerH}
       </button>
-      <button onClick={() => onCenter("y")} className={cls}>
+      <button type="button" onClick={() => onCenter("y")} className={cls}>
         {t.editor.centerV}
       </button>
     </div>
@@ -843,11 +957,7 @@ function CenterButtons({ onCenter }: { onCenter: (axis: "x" | "y") => void }) {
 /** Toggle chip used to choose which elements appear on the card. */
 function Pill({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      aria-pressed={on}
-      className="chip"
-    >
+    <button type="button" onClick={onClick} aria-pressed={on} className="chip">
       {children}
     </button>
   );
@@ -875,6 +985,7 @@ function Segmented<T extends string>({
     <div role="radiogroup" className="seg">
       {options.map((o) => (
         <button
+          type="button"
           key={o.id}
           role="radio"
           aria-checked={value === o.id}

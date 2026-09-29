@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { ApiError, listActivities, type Activity } from "../lib/api";
-import { formatDate, formatDistance, sportLabel } from "../lib/format";
 import { LangSwitcher, useI18n } from "../i18n";
+import { type Activity, type ApiError, listActivities } from "../lib/api";
+import { formatDate, formatDistance, sportLabel } from "../lib/format";
 import { ThemeSwitcher } from "../theme";
 
 type Props = {
@@ -49,7 +49,12 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
           <h1 className="font-display text-5xl font-bold">{t.list.title}</h1>
           {/* Desktop: under the title */}
           {coffeeLink && (
-            <a href={coffeeLink} target="_blank" rel="noopener noreferrer" className="link hidden text-sm md:inline">
+            <a
+              href={coffeeLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="link hidden text-sm md:inline"
+            >
               {t.coffee.label}
             </a>
           )}
@@ -62,11 +67,16 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
           <div className="flex items-center justify-between md:justify-end md:gap-2">
             {/* Mobile: next to the sign-out link */}
             {coffeeLink && (
-              <a href={coffeeLink} target="_blank" rel="noopener noreferrer" className="link text-sm md:hidden">
+              <a
+                href={coffeeLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="link text-sm md:hidden"
+              >
                 {t.coffee.label}
               </a>
             )}
-            <button onClick={onLogout} className="link ml-2 text-sm">
+            <button type="button" onClick={onLogout} className="link ml-2 text-sm">
               {t.list.logout}
             </button>
           </div>
@@ -87,6 +97,7 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
           return (
             <li key={a.id}>
               <button
+                type="button"
                 onClick={() => onSelect(a.id)}
                 className="flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-surface-2"
               >
@@ -109,10 +120,7 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
       {loading && <p className="py-6 text-muted">{t.list.loading}</p>}
 
       {hasMore && !loading && items.length > 0 && (
-        <button
-          onClick={() => setPage((p) => p + 1)}
-          className="btn btn-outline mt-6 w-full"
-        >
+        <button type="button" onClick={() => setPage((p) => p + 1)} className="btn btn-outline mt-6 w-full">
           {t.list.loadMore}
         </button>
       )}

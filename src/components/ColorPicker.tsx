@@ -11,7 +11,6 @@ type Props = {
   presets?: readonly string[];
 };
 
-
 /** Preset swatches plus the browser's native color picker for any other color. */
 export default function ColorPicker({ value, onChange, allowAuto = false, presets = ROUTE_COLORS }: Props) {
   const { t } = useI18n();
@@ -22,6 +21,7 @@ export default function ColorPicker({ value, onChange, allowAuto = false, preset
     <div className="flex flex-wrap items-center gap-3">
       {allowAuto && (
         <button
+          type="button"
           onClick={() => onChange(null)}
           aria-pressed={value === null}
           className="chip text-sm"
@@ -31,6 +31,7 @@ export default function ColorPicker({ value, onChange, allowAuto = false, preset
       )}
       {presets.map((c) => (
         <button
+          type="button"
           key={c}
           onClick={() => onChange(c)}
           aria-label={t.editor.colorLabel(c)}

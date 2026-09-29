@@ -33,7 +33,13 @@ const tileUrl = (style: MapStyle, z: number, x: number, y: number) =>
 const cache = new Map<string, HTMLImageElement | "loading" | "failed">();
 
 /** Returns the tile if cached, otherwise starts loading it and reports back through `onLoad`. */
-function getTile(style: MapStyle, z: number, x: number, y: number, onLoad?: () => void): HTMLImageElement | null {
+function getTile(
+  style: MapStyle,
+  z: number,
+  x: number,
+  y: number,
+  onLoad?: () => void,
+): HTMLImageElement | null {
   const url = tileUrl(style, z, x, y);
   const hit = cache.get(url);
   if (hit instanceof HTMLImageElement) return hit;

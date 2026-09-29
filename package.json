@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "lint": "biome check . && tsc -b --noEmit",
+    "format": "biome format --write .",
     "preview": "vite preview",
     "deploy": "pnpm run build && wrangler deploy",
     "db:migrate": "wrangler d1 migrations create ofolam",
@@ -20,6 +22,7 @@
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.14",
     "@cloudflare/vite-plugin": "^1.60.2",
     "@cloudflare/workers-types": "^5.20260926.1",
     "@tailwindcss/vite": "^4.3.3",

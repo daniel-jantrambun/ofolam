@@ -1,6 +1,12 @@
 import { useI18n } from "../i18n";
+import {
+  DEFAULT_TEXT_STYLE,
+  type FontKey,
+  TEXT_SIZE_MAX,
+  TEXT_SIZE_MIN,
+  type TextStyle,
+} from "../lib/render";
 import ColorPicker from "./ColorPicker";
-import { DEFAULT_TEXT_STYLE, TEXT_SIZE_MAX, TEXT_SIZE_MIN, type FontKey, type TextStyle } from "../lib/render";
 
 type Props = {
   value: TextStyle;
@@ -30,6 +36,7 @@ export default function TextStylePanel({ value, onChange, onDone }: Props) {
             const on = value.font === f;
             return (
               <button
+                type="button"
                 key={f}
                 onClick={() => set("font", on ? null : f)}
                 aria-pressed={on}
@@ -55,7 +62,7 @@ export default function TextStylePanel({ value, onChange, onDone }: Props) {
           <span className="flex items-center gap-2 text-muted">
             {Math.round((value.size ?? 1) * 100)}%
             {value.size !== null && (
-              <button onClick={() => set("size", null)} className="link">
+              <button type="button" onClick={() => set("size", null)} className="link">
                 {t.editor.resetZoom}
               </button>
             )}
@@ -74,20 +81,23 @@ export default function TextStylePanel({ value, onChange, onDone }: Props) {
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
-
         {value.pos && (
-          <button onClick={() => set("pos", null)} className="link text-sm">
+          <button type="button" onClick={() => set("pos", null)} className="link text-sm">
             {t.editor.routeAuto}
           </button>
         )}
         {(value.font !== null || value.color !== null || value.size !== null) && (
-          <button onClick={() => onChange({ ...DEFAULT_TEXT_STYLE, pos: value.pos })} className="link text-sm">
+          <button
+            type="button"
+            onClick={() => onChange({ ...DEFAULT_TEXT_STYLE, pos: value.pos })}
+            className="link text-sm"
+          >
             {t.editor.resetStyle}
           </button>
         )}
       </div>
 
-      <button onClick={onDone} className="btn btn-secondary">
+      <button type="button" onClick={onDone} className="btn btn-secondary">
         {t.editor.routeDone}
       </button>
     </div>

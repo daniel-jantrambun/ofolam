@@ -39,10 +39,7 @@ export class StravaError extends Error {
 
 export const now = () => Math.floor(Date.now() / 1000);
 
-export async function exchangeToken(
-  env: Env,
-  params: Record<string, string>,
-): Promise<TokenResponse> {
+export async function exchangeToken(env: Env, params: Record<string, string>): Promise<TokenResponse> {
   const res = await fetch(`${STRAVA_BASE}/oauth/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -52,7 +49,8 @@ export async function exchangeToken(
       ...params,
     }),
   });
-  if (!res.ok) throw new StravaError(res.status === 400 ? 401 : 502, "token_exchange_failed", String(res.status));
+  if (!res.ok)
+    throw new StravaError(res.status === 400 ? 401 : 502, "token_exchange_failed", String(res.status));
   return res.json();
 }
 

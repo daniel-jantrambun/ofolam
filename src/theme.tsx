@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useI18n } from "./i18n";
 
 export type Theme = "light" | "dark" | "system";
@@ -36,7 +36,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (theme === "system") delete root.dataset.theme;
     else root.dataset.theme = theme;
     // Browser chrome (address bar) follows the page
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolved === "dark" ? "#0F1A1F" : "#17252B");
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", resolved === "dark" ? "#0F1A1F" : "#17252B");
   }, [theme, resolved]);
 
   const setTheme = useCallback((t: Theme) => {
@@ -60,7 +62,8 @@ export function useTheme(): ThemeCtx {
 }
 
 const ICONS: Record<Theme, string> = {
-  light: "M12 4v2 M12 18v2 M4 12h2 M18 12h2 M6.3 6.3l1.4 1.4 M16.3 16.3l1.4 1.4 M6.3 17.7l1.4-1.4 M16.3 7.7l1.4-1.4 M12 8a4 4 0 100 8 4 4 0 000-8z",
+  light:
+    "M12 4v2 M12 18v2 M4 12h2 M18 12h2 M6.3 6.3l1.4 1.4 M16.3 16.3l1.4 1.4 M6.3 17.7l1.4-1.4 M16.3 7.7l1.4-1.4 M12 8a4 4 0 100 8 4 4 0 000-8z",
   dark: "M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z",
   system: "M4 6h16v10H4z M9 20h6 M12 16v4",
 };
@@ -74,6 +77,7 @@ export function ThemeSwitcher({ className = "" }: { className?: string }) {
     <div role="radiogroup" aria-label={t.theme.label} className={`seg ${className}`}>
       {ORDER.map((opt) => (
         <button
+          type="button"
           key={opt}
           role="radio"
           aria-checked={theme === opt}
@@ -82,7 +86,16 @@ export function ThemeSwitcher({ className = "" }: { className?: string }) {
           onClick={() => setTheme(opt)}
           className="seg-item !px-2.5"
         >
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <path d={ICONS[opt]} />
           </svg>
         </button>

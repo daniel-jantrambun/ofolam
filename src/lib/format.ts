@@ -1,5 +1,5 @@
-import type { Activity } from "./api";
 import type { Dictionary } from "../i18n/en";
+import type { Activity } from "./api";
 
 const PACE_SPORTS = new Set(["Run", "TrailRun", "VirtualRun", "Walk", "Hike"]);
 const SWIM_SPORTS = new Set(["Swim"]);
@@ -32,7 +32,10 @@ export function formatDuration(seconds: number): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
-export function formatPaceOrSpeed(a: Activity, t: Dictionary): { value: string; unit: string; label: string } {
+export function formatPaceOrSpeed(
+  a: Activity,
+  t: Dictionary,
+): { value: string; unit: string; label: string } {
   if (!a.averageSpeed) return { value: "–", unit: "", label: t.stats.pace };
   if (SWIM_SPORTS.has(a.sportType)) {
     return { value: formatDuration(100 / a.averageSpeed), unit: "/100 m", label: t.stats.pace };

@@ -1,6 +1,6 @@
 import { useRef } from "react";
-import type { Box } from "../lib/render";
 import { clamp } from "../lib/crop";
+import type { Box } from "../lib/render";
 
 export type OverlayItem = {
   key: string;
@@ -14,6 +14,8 @@ export type OverlayItem = {
 export type BoxChange = { key: string; box: Box };
 
 type Props = {
+  /** Accessible name of the layer (it is a pointer-driven widget). */
+  label: string;
   items: OverlayItem[];
   /** Selected keys; the last one is the primary selection. */
   selected: string[];
@@ -47,7 +49,7 @@ type Gesture = {
  * - Drag moves the selected item(s); pinch resizes a single resizable item.
  * Never part of the exported image.
  */
-export default function CardOverlay({ items, selected, onSelect, onChange }: Props) {
+export default function CardOverlay({ label, items, selected, onSelect, onChange }: Props) {
   const layerRef = useRef<HTMLDivElement>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<Gesture | null>(null);
@@ -78,7 +80,11 @@ export default function CardOverlay({ items, selected, onSelect, onChange }: Pro
       .filter((i): i is OverlayItem => !!i && !i.fixed)
       .map((i) => ({ key: i.key, box: i.box }));
     gesture.current = targets.length
-      ? { targets, ...measure(), resizable: targets.length === 1 && !!items.find((i) => i.key === targets[0].key)?.resizable }
+      ? {
+          targets,
+          ...measure(),
+          resizable: targets.length === 1 && !!items.find((i) => i.key === targets[0].key)?.resizable,
+        }
       : null;
   };
 
@@ -174,7 +180,8 @@ export default function CardOverlay({ items, selected, onSelect, onChange }: Pro
   return (
     <div
       ref={layerRef}
-      role="presentation"
+      role="application"
+      aria-label={label}
       className="absolute inset-0 touch-none select-none"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

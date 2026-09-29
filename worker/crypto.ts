@@ -12,10 +12,7 @@ function bytesToB64(bytes: Uint8Array): string {
 }
 
 function getKey(rawB64: string): Promise<CryptoKey> {
-  cachedKey ??= crypto.subtle.importKey("raw", b64ToBytes(rawB64), "AES-GCM", false, [
-    "encrypt",
-    "decrypt",
-  ]);
+  cachedKey ??= crypto.subtle.importKey("raw", b64ToBytes(rawB64), "AES-GCM", false, ["encrypt", "decrypt"]);
   return cachedKey;
 }
 

@@ -10,7 +10,12 @@ export const ACTIVITY_TTL_S = 24 * 60 * 60;
  * Returns the cached value when present, otherwise runs `loader` and stores its result.
  * KV is eventually consistent (up to ~60s to propagate), which is fine for this data.
  */
-export async function cached<T>(env: Env, key: string, ttlSeconds: number, loader: () => Promise<T>): Promise<T> {
+export async function cached<T>(
+  env: Env,
+  key: string,
+  ttlSeconds: number,
+  loader: () => Promise<T>,
+): Promise<T> {
   const hit = await env.CACHE.get<T>(key, "json");
   if (hit !== null) return hit;
   const value = await loader();
