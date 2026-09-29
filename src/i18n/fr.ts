@@ -4,16 +4,17 @@ export const fr: Dictionary = {
   locale: "fr-FR",
   theme: { label: "Thème", light: "Clair", dark: "Sombre", system: "Système" },
   lang: { label: "Langue", en: "English", fr: "Français" },
+  coffee: { label: "Offre-moi un café" },
   login: {
     title: "Ta sortie, en une image.",
     subtitle: "Choisis une activité Strava, garde les stats qui comptent et partage le visuel en story.",
     connect: "Se connecter avec Strava",
-    doneElsewhere: "Connexion réussie. Tu peux revenir dans l'app Trace.",
+    doneElsewhere: "Connexion réussie. Tu peux revenir dans l'app Ofolam.",
   },
   auth: {
     denied: "Connexion annulée sur Strava.",
     expired: "La demande de connexion a expiré. Relance-la.",
-    scope: "Trace a besoin de l'accès en lecture à tes activités. Coche cette permission sur Strava.",
+    scope: "Ofolam a besoin de l'accès en lecture à tes activités. Coche cette permission sur Strava.",
     error: "Strava n'a pas renvoyé ton profil. Relance la connexion.",
   },
   list: {

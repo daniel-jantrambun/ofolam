@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useI18n } from "./i18n";
 
 export type Theme = "light" | "dark" | "system";
-const KEY = "oflm.theme";
+const KEY = "ofolam.theme";
 
 const read = (): Theme => {
   try {

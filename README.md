@@ -11,7 +11,7 @@ Stack: Vite + React + Tailwind v4, a Cloudflare Worker (Hono) for the API, D1 fo
 2. Put your `STRAVA_CLIENT_ID` in `wrangler.jsonc`.
 3. Create the D1 database and copy its `database_id` into `wrangler.jsonc`:
    ```sh
-   pnpm wrangler d1 create oflm
+   pnpm wrangler d1 create ofolam
    ```
 4. Create the KV namespace (cache of Strava responses) and copy its `id` into `wrangler.jsonc`:
    ```sh
@@ -63,7 +63,7 @@ to stay under the API quotas (200 requests / 15 min, 2,000 / day, across all use
 The PWA also keeps the first page and every opened activity in localStorage: they show up
 instantly on launch, then refresh in the background (`src/lib/cache.ts`).
 
-**Languages.** English and French (`src/i18n/`). Priority: `oflm.lang` cookie (switcher) > country
+**Languages.** English and French (`src/i18n/`). Priority: `ofolam.lang` cookie (switcher) > country
 of the Strava profile (the API does not expose a language, so `fr` is inferred from French-speaking
 countries) > English. Worker errors are codes (`rate_limited`, `invalid_session`, …) translated by
 the PWA.

@@ -17,6 +17,8 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiError | null>(null);
+  // Optional "Buy me a coffee" link, set through VITE_COFFEE_URL in .env (see .env.example)
+  const coffeeLink = import.meta.env.VITE_COFFEE_URL;
 
   useEffect(() => {
     let cancelled = false;
@@ -25,14 +27,13 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
       setItems((prev) => (page === 1 ? list : [...prev, ...list]));
       setHasMore(list.length === 20);
     };
-    // Affiche le cache tout de suite, puis rafraîchit depuis l'API en arrière-plan
+    // Show the cache right away, then refresh from the API in the background
     if (cached) apply(cached);
     setLoading(!cached);
     fresh
       .then((list) => !cancelled && apply(list))
       .catch((e: ApiError) => {
         if (e.status === 401) return onSessionLost();
-        // Avec un cache affiché, une erreur réseau ne doit pas masquer la liste
         if (!cancelled && !cached) setError(e);
       })
       .finally(() => !cancelled && setLoading(false));
@@ -44,18 +45,30 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
   return (
     <main className="mx-auto max-w-xl px-5 py-6">
       <header className="mb-6 flex flex-col md:flex-row md:items-baseline justify-between gap-2">
-        <h1 className="font-display text-5xl font-bold">{t.list.title}</h1>
-        <div className="flex items-center gap-2">
-            <div className="flex flex-col flex-1 md:gap-2">
-              <div className="flex flex-row flex-1 md:items-center  gap-2">
-                <ThemeSwitcher />
-                <LangSwitcher />
-              </div>
-              <div className="flex items-end flex-col md:gap-2">
-                <button onClick={onLogout} className="link ml-2 text-sm">
-                  {t.list.logout}
-                </button>
-              </div>
+        <div className="flex flex-col justify-between gap-2">
+          <h1 className="font-display text-5xl font-bold">{t.list.title}</h1>
+          {/* Desktop: under the title */}
+          {coffeeLink && (
+            <a href={coffeeLink} target="_blank" rel="noopener noreferrer" className="link hidden text-sm md:inline">
+              {t.coffee.label}
+            </a>
+          )}
+        </div>
+        <div className="flex flex-col flex-1 md:items-end gap-2">
+          <div className="flex flex-row flex-1 md:items-center justify-between gap-4">
+            <ThemeSwitcher />
+            <LangSwitcher />
+          </div>
+          <div className="flex items-center justify-between md:justify-end md:gap-2">
+            {/* Mobile: next to the sign-out link */}
+            {coffeeLink && (
+              <a href={coffeeLink} target="_blank" rel="noopener noreferrer" className="link text-sm md:hidden">
+                {t.coffee.label}
+              </a>
+            )}
+            <button onClick={onLogout} className="link ml-2 text-sm">
+              {t.list.logout}
+            </button>
           </div>
         </div>
       </header>

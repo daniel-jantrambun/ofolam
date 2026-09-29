@@ -29,7 +29,7 @@ export default function App() {
 
   const onSessionLost = useCallback(() => setSession(getSession()), []);
 
-  // Langue suggérée par le pays du profil Strava (le cookie garde la priorité)
+  // Language suggested by the Strava profile's country (the cookie takes precedence)
   useEffect(() => {
     if (!session) return suggestLocale(null);
     getMe()
@@ -38,7 +38,7 @@ export default function App() {
   }, [session, suggestLocale]);
 
   if (!session) {
-    // Callback ouvert dans le navigateur intégré iOS : la session attend la PWA
+    // Callback opened in the iOS in-app browser: the session is waiting for the PWA
     const doneElsewhere = authParam === "done" && !hasPendingLogin();
     const notice = doneElsewhere ? t.login.doneElsewhere : isAuthKey(authParam) ? t.auth[authParam] : undefined;
     return <Login notice={notice} />;

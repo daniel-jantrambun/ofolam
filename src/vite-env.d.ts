@@ -1,0 +1,13 @@
+/// <reference types="vite/client" />
+
+// Typed access to the VITE_* variables used by the app (see .env.example)
+interface ImportMetaEnv {
+  readonly VITE_COFFEE_URL?: string;
+  readonly VITE_TILES_LIGHT?: string;
+  readonly VITE_TILES_DARK?: string;
+  readonly VITE_TILES_ATTRIBUTION?: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}

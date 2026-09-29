@@ -50,7 +50,7 @@ export const formatElevation = (a: Activity, t: Dictionary) => ({
 
 export const formatDate = (iso: string, t: Dictionary) =>
   new Intl.DateTimeFormat(t.locale, { weekday: "long", day: "numeric", month: "long" }).format(
-    // start_date_local est en heure locale mais suffixé Z : on ignore le fuseau
+    // start_date_local is local time with a Z suffix: ignore the timezone
     new Date(iso.replace("Z", "")),
   );
 

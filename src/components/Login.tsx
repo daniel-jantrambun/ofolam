@@ -34,7 +34,7 @@ export default function Login({ notice }: { notice?: string }) {
             {notice}
           </p>
         )}
-        {/* Brand guidelines Strava : remplace par le bouton officiel "Connect with Strava" */}
+        {/* Strava brand guidelines: replace with the official "Connect with Strava" button */}
         <button
           onClick={startLogin}
           className="btn btn-accent w-full min-h-14 text-lg"

@@ -1,6 +1,6 @@
 export function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Export PNG impossible"))), "image/png"),
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("PNG export failed"))), "image/png"),
   );
 }
 
@@ -11,9 +11,9 @@ export function canShareFiles(): boolean {
 }
 
 /**
- * Ouvre le menu de partage natif (Instagram, WhatsApp…).
- * Doit être appelé directement dans le handler du clic, avec un blob déjà prêt :
- * Safari refuse le partage si on attend une promesse avant.
+ * Opens the native share sheet (Instagram, WhatsApp, …).
+ * Must be called directly from the click handler, with a blob already prepared:
+ * Safari refuses to share if a promise is awaited first.
  */
 export async function shareImage(blob: Blob, filename: string): Promise<"shared" | "cancelled"> {
   const file = new File([blob], filename, { type: "image/png" });
@@ -27,8 +27,8 @@ export async function shareImage(blob: Blob, filename: string): Promise<"shared"
 }
 
 /**
- * Copie l'image dans le presse-papiers pour la coller en sticker dans une story Instagram.
- * On passe une promesse à ClipboardItem (exigé par Safari pour rester dans le geste utilisateur).
+ * Copies the image to the clipboard, to paste it as a sticker in an Instagram story.
+ * A promise is handed to ClipboardItem (Safari requires it to stay within the user gesture).
  */
 export function copyImage(blob: Blob | Promise<Blob>): Promise<void> {
   if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {

@@ -1,4 +1,4 @@
-/** Décode une polyline encodée (format Google, précision 5 chez Strava) en [lat, lng][]. */
+/** Decodes an encoded polyline (Google format, precision 5 at Strava) into [lat, lng][]. */
 export function decodePolyline(str: string, precision = 5): [number, number][] {
   const factor = 10 ** precision;
   const points: [number, number][] = [];
@@ -35,9 +35,9 @@ export const project = ([lat, lng]: [number, number]): [number, number] => [
 export type MercatorTransform = { scale: number; tx: number; ty: number };
 
 /**
- * Projette les points (Web Mercator) et les ajuste dans une boîte en conservant
- * les proportions. Renvoie les coordonnées pixel [x, y] et la transformation utilisée,
- * pour que d'autres couches (fond de carte) partagent exactement la même projection.
+ * Projects the points (Web Mercator) and fits them into a box, keeping their aspect
+ * ratio. Returns the pixel coordinates [x, y] and the transform used, so that other
+ * layers (the map background) share exactly the same projection.
  */
 export function fitToBoxWithTransform(
   points: [number, number][],
@@ -58,7 +58,7 @@ export function fitToBoxWithTransform(
   const offX = box.x + (box.w - spanX * scale) / 2;
   const offY = box.y + (box.h - spanY * scale) / 2;
 
-  // y inversé : le nord en haut
+  // y is flipped: north at the top
   const transform = { scale, tx: offX - minX * scale, ty: offY + maxY * scale };
   return {
     points: projected.map(([x, y]) => [transform.scale * x + transform.tx, transform.ty - transform.scale * y]),

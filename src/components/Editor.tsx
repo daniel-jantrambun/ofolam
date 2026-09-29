@@ -97,7 +97,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   // Crop settings are shown after picking a photo, until the user saves them
   const [photoEditing, setPhotoEditing] = useState(false);
 
-  // Le dictionnaire fait partie des options de rendu : le canvas se redessine au changement de langue
+  // The dictionary is part of the render options: the canvas redraws when the language changes
   useEffect(() => setOpts((o) => (o.t === t ? o : { ...o, t })), [t]);
 
   // Every photo loaded in this session stays usable (undo may bring it back); all are released on unmount
@@ -185,7 +185,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
       });
   }, [activityId, onSessionLost]);
 
-  // Rendu + blob pré-calculé : navigator.share doit partir sans attente dans le clic
+  // Render + precomputed blob: navigator.share must fire without waiting inside the click
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !activity || !fontsReady) return;
@@ -200,7 +200,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const filename = `oflm-${activityId}.png`;
+  const filename = `ofolam-${activityId}.png`;
   const set = <K extends keyof CardOptions>(k: K, v: CardOptions[K]) => setOpts((o) => ({ ...o, [k]: v }));
   const toggleStat = (s: StatKey) =>
     set("stats", opts.stats.includes(s) ? opts.stats.filter((x) => x !== s) : [...opts.stats, s].slice(0, 4));
@@ -219,7 +219,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
 
   const onPickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    e.target.value = ""; // permet de re-sélectionner le même fichier
+    e.target.value = ""; // allows picking the same file again
     if (!file) return;
     try {
       const photo = await loadPhoto(file);

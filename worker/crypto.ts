@@ -1,4 +1,4 @@
-// Chiffrement AES-GCM des tokens Strava stockés en D1.
+// AES-GCM encryption of the Strava tokens stored in D1.
 let cachedKey: Promise<CryptoKey> | null = null;
 
 function b64ToBytes(b64: string): Uint8Array {

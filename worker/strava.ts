@@ -88,7 +88,7 @@ export async function saveTokens(
     .run();
 }
 
-/** Renvoie un access token valide, en le rafraîchissant si besoin. */
+/** Returns a valid access token, refreshing it when needed. */
 export async function getAccessToken(env: Env, athleteId: number): Promise<string> {
   const row = await env.DB.prepare(
     "SELECT access_token, refresh_token, expires_at FROM athletes WHERE id = ?",
@@ -103,7 +103,7 @@ export async function getAccessToken(env: Env, athleteId: number): Promise<strin
 
   const refreshToken = await decrypt(row.refresh_token, env.TOKEN_KEY);
   const t = await exchangeToken(env, { grant_type: "refresh_token", refresh_token: refreshToken });
-  // Strava peut renvoyer un nouveau refresh token : on stocke toujours le dernier
+  // Strava may return a new refresh token: always store the latest one
   await saveTokens(env, athleteId, t);
   return t.access_token;
 }

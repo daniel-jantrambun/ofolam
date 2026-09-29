@@ -3,18 +3,18 @@ export type Activity = {
   name: string;
   sportType: string;
   startDate: string;
-  distance: number; // mètres
-  movingTime: number; // secondes
+  distance: number; // meters
+  movingTime: number; // seconds
   elapsedTime: number;
-  elevation: number; // mètres
+  elevation: number; // meters
   averageSpeed: number; // m/s
   polyline: string | null;
 };
 
 import { cache } from "./cache";
 
-const SESSION_KEY = "oflm.session";
-const STATE_KEY = "oflm.oauthState";
+const SESSION_KEY = "ofolam.session";
+const STATE_KEY = "ofolam.oauthState";
 
 export const getSession = () => localStorage.getItem(SESSION_KEY);
 export const hasPendingLogin = () => !!localStorage.getItem(STATE_KEY);
@@ -43,9 +43,9 @@ export function startLogin() {
 }
 
 /**
- * Échange le state en attente contre une session.
- * Appelé au chargement et quand la PWA revient au premier plan : sur iOS en mode
- * standalone, le callback OAuth s'ouvre dans un navigateur intégré, pas dans la PWA.
+ * Exchanges the pending state for a session.
+ * Called on load and whenever the PWA comes back to the foreground: on iOS in standalone
+ * mode, the OAuth callback opens in an in-app browser, not in the PWA.
  */
 export async function claimPendingLogin(): Promise<boolean> {
   const state = localStorage.getItem(STATE_KEY);
@@ -86,7 +86,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const getMe = () => api<Me>("/me");
 
-// Stale-while-revalidate : `cached` est disponible tout de suite, `fresh` arrive du réseau.
+// Stale-while-revalidate: `cached` is available immediately, `fresh` comes from the network.
 export type Cached<T> = { cached: T | null; fresh: Promise<T> };
 
 /** Only the first page is cached: it is what the user sees when the app opens. */
