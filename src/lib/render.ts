@@ -178,7 +178,7 @@ const weightOf = (style: TextStyle, defaultWeight: number) =>
 const familyOf = (style: TextStyle, defaultFamily: string) => (style.font ? FONTS[style.font] : defaultFamily);
 const sizeOf = (style: TextStyle) => Math.min(TEXT_SIZE_MAX, Math.max(TEXT_SIZE_MIN, style.size ?? 1));
 
-/** À appeler avant le premier rendu : le canvas n'attend pas les webfonts. */
+/** Call before the first render: the canvas does not wait for web fonts. */
 export async function ensureFonts() {
   await Promise.all([
     document.fonts.load(`700 96px ${DISPLAY}`),
@@ -253,7 +253,7 @@ export function renderCard(
   // The background is drawn later (see "Fond"): a map needs the route's projection,
   // which depends on the layout measured below.
 
-  // Sur fond transparent, photo ou carte sombre, une ombre douce garde le texte lisible
+  // On a transparent, photo or dark map background, a soft shadow keeps the text readable
   const needsShadow = opts.background === "transparent" || hasPhoto || (isMap && opts.mapStyle === "dark");
   const withShadow = (fn: () => void) => {
     ctx.save();
@@ -275,7 +275,7 @@ export function renderCard(
   // order, after the automatic layout has been measured in the natural reading order.
   const layers = new Map<LayerKey, () => void>();
 
-  // --- Titre ---
+  // --- Title ---
   // `top` is where the automatic layout ends: it drives the route's automatic box even
   // when the title blocks are moved elsewhere.
   let top = P;
@@ -322,7 +322,7 @@ export function renderCard(
   }
   if (opts.showMeta || opts.showName) top += 48;
 
-  // --- Stats (bas) ---
+  // --- Stats (bottom) ---
   const footerH = 40;
   const statsH = opts.stats.length ? 150 : 0;
   const bottom = h - P - footerH - (statsH ? statsH + 32 : 0);
@@ -362,7 +362,7 @@ export function renderCard(
     });
   }
 
-  // --- Tracé ---
+  // --- Route ---
   const autoBox: RouteBox = { x: P / w, y: top / h, w: (w - 2 * P) / w, h: (bottom - top - 24) / h };
   const routeBox = opts.routeBox ?? autoBox;
   const order = layerOrder(opts.order);
@@ -414,7 +414,7 @@ export function renderCard(
           ctx.lineWidth = lineWidth;
           ctx.stroke(path);
 
-          // Départ : anneau ; arrivée : point plein
+          // Start: ring; finish: solid dot
           const [sx, sy] = pts[0];
           const [ex, ey] = pts[pts.length - 1];
           ctx.beginPath();
@@ -434,10 +434,10 @@ export function renderCard(
     }
   }
 
-  // --- Fond ---
+  // --- Background ---
   if (hasPhoto) {
     drawCover(ctx, opts.photo!, w, h, opts.photoCrop);
-    // Voile sombre en haut et en bas, là où se trouvent le titre et les stats
+    // Dark veil at the top and bottom, where the title and the stats sit
     const veil = ctx.createLinearGradient(0, 0, 0, h);
     veil.addColorStop(0, "rgba(0,0,0,0.45)");
     veil.addColorStop(0.35, "rgba(0,0,0,0.05)");
@@ -458,12 +458,12 @@ export function renderCard(
   // Draw deepest first
   for (const key of order) layers.get(key)?.();
 
-  // --- Mention Strava : toujours au-dessus de tout, jamais réordonnée ni masquée ---
+  // --- Strava mention: always on top, never reordered nor hidden ---
   withShadow(() => {
     ctx.font = `500 24px ${BODY}`;
     ctx.fillStyle = bg.text;
     ctx.globalAlpha = 0.6;
-    // TODO : remplacer par le logo officiel "Powered by Strava" (brand guidelines)
+    // TODO: replace with the official "Powered by Strava" logo (brand guidelines)
     const brand = "Powered by Strava";
     const bw = ctx.measureText(brand).width;
     const right = opts.brandCorner === "tr" || opts.brandCorner === "br";

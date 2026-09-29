@@ -2,16 +2,17 @@ export const en = {
   locale: "en-US",
   theme: { label: "Theme", light: "Light", dark: "Dark", system: "System" },
   lang: { label: "Language", en: "English", fr: "Français" },
+  coffee: { label: "Buy me a coffee" },
   login: {
     title: "Your ride, in one picture.",
     subtitle: "Pick a Strava activity, keep the stats that matter and share the visual as a story.",
     connect: "Connect with Strava",
-    doneElsewhere: "You're signed in. You can go back to the Trace app.",
+    doneElsewhere: "You're signed in. You can go back to the Ofolam app.",
   },
   auth: {
     denied: "Sign-in cancelled on Strava.",
     expired: "The sign-in request expired. Try again.",
-    scope: "Trace needs read access to your activities. Tick that permission on Strava.",
+    scope: "Ofolam needs read access to your activities. Tick that permission on Strava.",
     error: "Strava did not return your profile. Try signing in again.",
   },
   list: {

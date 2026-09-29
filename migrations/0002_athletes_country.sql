@@ -1,3 +1,3 @@
 -- Migration number: 0002
--- Pays du profil Strava, sert à deviner la langue de l'interface
+-- Country of the Strava profile, used to guess the UI language
 ALTER TABLE athletes ADD COLUMN country TEXT;

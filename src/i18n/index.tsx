@@ -8,7 +8,7 @@ export const DEFAULT_LOCALE: Locale = "en";
 
 const DICTIONARIES: Record<Locale, Dictionary> = { en, fr };
 
-const COOKIE = "oflm.lang";
+const COOKIE = "ofolam.lang";
 const COOKIE_MAX_AGE_S = 365 * 24 * 60 * 60;
 
 const isLocale = (v: unknown): v is Locale => typeof v === "string" && (LOCALES as string[]).includes(v);

@@ -4,7 +4,7 @@
  * Used in a stale-while-revalidate fashion: components render the cached value
  * immediately, then refresh it from the API in the background.
  */
-const PREFIX = "oflm.cache.";
+const PREFIX = "ofolam.cache.";
 /** Keep at most this many single-activity entries (each one carries a polyline). */
 const MAX_ACTIVITY_ENTRIES = 30;
 

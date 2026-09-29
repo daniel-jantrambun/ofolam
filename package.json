@@ -1,5 +1,5 @@
 {
-  "name": "oflm",
+  "name": "ofolam",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -9,9 +9,9 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "deploy": "pnpm run build && wrangler deploy",
-    "db:migrate": "wrangler d1 migrations create oflm",
-    "db:migrate:local": "wrangler d1 migrations apply oflm --local",
-    "db:migrate:remote": "wrangler d1 migrations apply oflm --remote",
+    "db:migrate": "wrangler d1 migrations create ofolam",
+    "db:migrate:local": "wrangler d1 migrations apply ofolam --local",
+    "db:migrate:remote": "wrangler d1 migrations apply ofolam --remote",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {

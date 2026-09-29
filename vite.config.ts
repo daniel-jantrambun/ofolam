@@ -17,13 +17,13 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       workbox: {
-        // Indispensable : sinon le service worker intercepte /api/auth/start
-        // et sert index.html au lieu de rediriger vers Strava
+        // Required: otherwise the service worker intercepts /api/auth/start
+        // and serves index.html instead of redirecting to Strava
         navigateFallbackDenylist: [/^\/api\//],
       },
       manifest: {
-        name: "Trace",
-        short_name: "Trace",
+        name: "Ofolam",
+        short_name: "Ofolam",
         description: "Transforme tes activités Strava en visuels à partager.",
         theme_color: colors.secondary,
         background_color: colors.background,

@@ -22,7 +22,7 @@ const redirectUri = (reqUrl: string) => `${new URL(reqUrl).origin}/api/auth/call
 
 // ---------- OAuth ----------
 
-// La PWA génère un `state` aléatoire, le garde en localStorage, puis navigue ici.
+// The PWA generates a random `state`, keeps it in localStorage, then navigates here.
 app.get("/auth/start", async (c) => {
   const state = c.req.query("state");
   if (!state || !/^[A-Za-z0-9_-]{32,128}$/.test(state)) return c.json({ error: "invalid_state" }, 400);
@@ -58,7 +58,7 @@ app.get("/auth/callback", async (c) => {
     .first<{ created_at: number }>();
   if (!pending || pending.created_at < now() - STATE_TTL_S) return c.redirect("/?auth=expired");
 
-  // L'utilisateur peut décocher des permissions sur l'écran Strava
+  // The user may untick permissions on the Strava screen
   if (!scope.split(",").some((s) => s.startsWith("activity:read"))) {
     return c.redirect("/?auth=scope");
   }
@@ -83,7 +83,7 @@ app.get("/auth/callback", async (c) => {
   return c.redirect("/?auth=done");
 });
 
-// La PWA échange son `state` contre le token de session (usage unique).
+// The PWA exchanges its `state` for the session token (single use).
 app.post("/auth/claim", async (c) => {
   const body = await c.req.json<{ state?: string }>().catch(() => ({}) as { state?: string });
   if (!body.state) return c.json({ error: "invalid_state" }, 400);
@@ -97,7 +97,7 @@ app.post("/auth/claim", async (c) => {
   return c.json({ session: row.session_token });
 });
 
-// ---------- Routes authentifiées ----------
+// ---------- Authenticated routes ----------
 
 const auth: MiddlewareHandler<AppEnv> = async (c, next) => {
   const header = c.req.header("Authorization") ?? "";
@@ -169,7 +169,7 @@ app.get("/activities/:id", async (c) => {
   const id = c.req.param("id");
   if (!/^\d+$/.test(id)) return c.json({ error: "invalid_id" }, 400);
   const athleteId = c.get("athleteId");
-  // Le détail contient `map.polyline`, plus précis que le summary_polyline de la liste
+  // The detail carries `map.polyline`, more precise than the list's summary_polyline
   const activity = await cached(c.env, activityKey(athleteId, id), ACTIVITY_TTL_S, async () => {
     const raw = await stravaGet<StravaActivity>(c.env, athleteId, `/activities/${id}`);
     return toActivity(raw);
