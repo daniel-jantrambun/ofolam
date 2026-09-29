@@ -1,0 +1,235 @@
+@import "tailwindcss";
+
+/*
+ * Colors are declared once in `src/lib/colors.ts`; keep the values here in sync.
+ * Tailwind v4 turns every `--color-*` variable into utility classes
+ * (bg-primary, text-muted, border-border, ring-primary, ...).
+ * The semantic roles are redefined for the dark theme below, so every utility
+ * that uses them follows the theme automatically.
+ */
+@theme {
+  /* Raw palette */
+  --color-topo: #eef1ec;
+  --color-contour: #c9d3c6;
+  --color-ink: #17252b;
+  --color-ink-soft: #4a5a60;
+  --color-bib: #2b50ff;
+  --color-strava: #fc4c02;
+
+  /* Semantic roles (light) */
+  --color-primary: var(--color-bib);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--color-ink);
+  --color-secondary-foreground: #ffffff;
+  --color-background: var(--color-topo);
+  --color-foreground: var(--color-ink);
+  --color-muted: var(--color-ink-soft);
+  --color-border: var(--color-contour);
+  --color-accent: var(--color-strava);
+  --color-accent-foreground: #ffffff;
+  /* Raised surfaces: cards, chips, inputs */
+  --color-surface: #ffffff;
+  --color-surface-2: #f6f8f5;
+
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-sans: "Barlow", system-ui, sans-serif;
+
+  --radius-card: 1.25rem;
+  --shadow-card: 0 1px 2px rgb(23 37 43 / 0.06), 0 8px 24px -12px rgb(23 37 43 / 0.18);
+  --shadow-float: 0 12px 40px -12px rgb(23 37 43 / 0.35);
+}
+
+/* Dark theme: explicit choice, or system preference when nothing was chosen */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-primary: #5b7bff;
+  --color-secondary: #eef1ec;
+  --color-secondary-foreground: #17252b;
+  --color-background: #0f1a1f;
+  --color-foreground: #eef1ec;
+  --color-muted: #9aabb2;
+  --color-border: #2c3b42;
+  --color-surface: #17252b;
+  --color-surface-2: #1d2d34;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  --shadow-float: 0 12px 40px -12px rgb(0 0 0 / 0.7);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
+    --color-primary: #5b7bff;
+    --color-secondary: #eef1ec;
+    --color-secondary-foreground: #17252b;
+    --color-background: #0f1a1f;
+    --color-foreground: #eef1ec;
+    --color-muted: #9aabb2;
+    --color-border: #2c3b42;
+    --color-surface: #17252b;
+    --color-surface-2: #1d2d34;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    --shadow-float: 0 12px 40px -12px rgb(0 0 0 / 0.7);
+  }
+}
+
+html,
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+#root {
+  min-height: 100dvh;
+  overflow-x: clip;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* Shared UI pieces. Kept in CSS so every component looks the same. */
+@layer components {
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0 1.125rem;
+    border-radius: 0.875rem;
+    font-weight: 600;
+    line-height: 1;
+    border: 1px solid transparent;
+    transition: transform 0.08s ease, background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+    &:active { transform: scale(0.98); }
+    &:disabled { opacity: 0.45; pointer-events: none; }
+  }
+  .btn-sm { min-height: 2.25rem; padding: 0 0.875rem; font-size: 0.875rem; border-radius: 0.75rem; }
+  .btn-primary { background: var(--color-primary); color: var(--color-primary-foreground); }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-accent { background: var(--color-accent); color: var(--color-accent-foreground); }
+  .btn-accent:hover { filter: brightness(1.06); }
+  .btn-secondary { background: var(--color-secondary); color: var(--color-secondary-foreground); }
+  .btn-outline { background: var(--color-surface); color: var(--color-foreground); border-color: var(--color-border); }
+  .btn-outline:hover { border-color: var(--color-muted); }
+  .btn-ghost { background: transparent; color: var(--color-muted); }
+  .btn-ghost:hover { background: var(--color-surface-2); color: var(--color-foreground); }
+  .link { color: var(--color-muted); text-decoration: underline; text-underline-offset: 4px; }
+  .link:hover { color: var(--color-foreground); }
+
+  /* Toggle chips */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.5rem;
+    padding: 0 1rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-foreground);
+    font-weight: 500;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+  .chip:hover { border-color: var(--color-muted); }
+  .chip[aria-pressed="true"],
+  .chip-on {
+    background: var(--color-secondary);
+    border-color: var(--color-secondary);
+    color: var(--color-secondary-foreground);
+  }
+
+  /* Segmented control */
+  .seg {
+    display: inline-flex;
+    flex-wrap: wrap; /* never wider than the screen: items wrap on narrow phones */
+    max-width: 100%;
+    padding: 0.25rem;
+    gap: 0.125rem;
+    border-radius: 0.875rem;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+  }
+  .seg-item {
+    flex: 1 1 auto;
+    text-align: center;
+    white-space: nowrap;
+    padding: 0.5rem 0.875rem;
+    border-radius: 0.625rem;
+    font-weight: 500;
+    color: var(--color-muted);
+    transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .seg-item:hover { color: var(--color-foreground); }
+  .seg-item[aria-checked="true"],
+  .seg-item[aria-pressed="true"] {
+    background: var(--color-surface);
+    color: var(--color-foreground);
+    box-shadow: var(--shadow-card);
+  }
+
+  .field-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  .swatch {
+    height: 2.5rem;
+    width: 2.5rem;
+    border-radius: 999px;
+    border: 2px solid var(--color-border);
+    transition: transform 0.08s ease, box-shadow 0.15s ease;
+  }
+  .swatch:hover { transform: scale(1.06); }
+  .swatch[aria-pressed="true"],
+  .swatch-on {
+    border-color: var(--color-secondary);
+    box-shadow: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-secondary);
+  }
+
+  .notice {
+    padding: 0.75rem 1rem;
+    border-radius: 0.875rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+  }
+
+  .toast {
+    background: var(--color-secondary);
+    color: var(--color-secondary-foreground);
+    border-radius: 0.875rem;
+    padding: 0.75rem 1rem;
+    box-shadow: var(--shadow-float);
+  }
+
+  input[type="range"].range { accent-color: var(--color-primary); }
+}
+
+/* Checkerboard to preview sticker transparency */
+.checker {
+  background-color: color-mix(in srgb, var(--color-surface-2) 85%, var(--color-muted));
+  background-image:
+    linear-gradient(45deg, var(--color-border) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--color-border) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--color-border) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--color-border) 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+}

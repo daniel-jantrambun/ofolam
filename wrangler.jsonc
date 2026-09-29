@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "oflm",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "not_found_handling": "single-page-application",
+    // L'API passe avant les assets statiques
+    "run_worker_first": ["/api/*"]
+  },
+  // Cache des réponses Strava (activités). Créer avec : pnpm wrangler kv namespace create CACHE
+  "kv_namespaces": [{ "binding": "CACHE", "id": "REMPLACE_MOI" }],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "oflm", "database_id": "985df16d-9df8-4525-ac66-fefe70454164" }
+  ],
+  "vars": {
+    "STRAVA_CLIENT_ID": "282591"
+  }
+  // Secrets (wrangler secret put / .dev.vars) : STRAVA_CLIENT_SECRET, TOKEN_KEY
+}
