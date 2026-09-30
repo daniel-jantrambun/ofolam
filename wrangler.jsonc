@@ -9,12 +9,24 @@
     "run_worker_first": ["/api/*"]
   },
   // Cache of Strava responses (activities). Create with: pnpm wrangler kv namespace create CACHE
-  "kv_namespaces": [{ "binding": "CACHE", "id": "REMPLACE_MOI" }],
-  "d1_databases": [
-    { "binding": "DB", "database_name": "ofolam", "database_id": "985df16d-9df8-4525-ac66-fefe70454164" }
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "712c90cee85545d98ad581cf6dac81e6"
+    }
   ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ofolam",
+      "database_id": "985df16d-9df8-4525-ac66-fefe70454164"
+    }
+  ],
+  // Production Strava app (callback domain = your domain). For local dev, .dev.vars
+  // overrides STRAVA_CLIENT_ID with the "dev" app (callback domain = localhost).
   "vars": {
     "STRAVA_CLIENT_ID": "282591"
-  }
+  },
+  "routes": [{ "pattern": "ofolam.com", "custom_domain": true }]
   // Secrets (wrangler secret put / .dev.vars): STRAVA_CLIENT_SECRET, TOKEN_KEY
 }

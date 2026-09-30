@@ -1,3 +1,10 @@
-STRAVA_CLIENT_SECRET=your_client_secret
+# Local worker secrets (never committed). Values here override `vars` from wrangler.jsonc in `pnpm dev`.
+#
+# Strava only allows one callback domain per app, so use two apps:
+# - a "dev" app with Authorization Callback Domain = localhost → its ids go here;
+# - the production app (your domain) → its client id lives in wrangler.jsonc `vars`,
+#   its secret is set once with `pnpm wrangler secret put STRAVA_CLIENT_SECRET`.
+STRAVA_CLIENT_ID=your_dev_app_client_id
+STRAVA_CLIENT_SECRET=your_dev_app_client_secret
 # 32 bytes in base64: openssl rand -base64 32
 TOKEN_KEY=
