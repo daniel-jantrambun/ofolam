@@ -1,6 +1,7 @@
 export const en = {
   locale: "en-US",
   theme: { label: "Theme", light: "Light", dark: "Dark", system: "System" },
+  settings: { label: "Settings" },
   lang: { label: "Language", en: "English", fr: "Français" },
   coffee: { label: "Buy me a coffee" },
   login: {

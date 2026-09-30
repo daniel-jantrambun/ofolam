@@ -70,11 +70,12 @@ const ICONS: Record<Theme, string> = {
 const ORDER: Theme[] = ["light", "system", "dark"];
 
 /** Segmented light / system / dark toggle. */
-export function ThemeSwitcher({ className = "" }: { className?: string }) {
+/** `onPick` fires after a choice, e.g. to close a menu holding the switcher. */
+export function ThemeSwitcher({ className = "", onPick }: { className?: string; onPick?: () => void }) {
   const { theme, setTheme } = useTheme();
   const { t } = useI18n();
   return (
-    <div role="radiogroup" aria-label={t.theme.label} className={`seg ${className}`}>
+    <div role="radiogroup" aria-label={t.theme.label} className={`seg seg-sm ${className}`}>
       {ORDER.map((opt) => (
         <button
           type="button"
@@ -83,12 +84,15 @@ export function ThemeSwitcher({ className = "" }: { className?: string }) {
           aria-checked={theme === opt}
           aria-label={t.theme[opt]}
           title={t.theme[opt]}
-          onClick={() => setTheme(opt)}
-          className="seg-item !px-2.5"
+          onClick={() => {
+            setTheme(opt);
+            onPick?.();
+          }}
+          className="seg-item"
         >
           <svg
             viewBox="0 0 24 24"
-            className="h-4 w-4"
+            className="h-3.5 w-3.5"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.8"
