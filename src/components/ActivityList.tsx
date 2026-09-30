@@ -46,7 +46,10 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
     <main className="mx-auto max-w-xl px-5 py-6">
       <header className="mb-6 flex flex-col md:flex-row md:items-baseline justify-between gap-2">
         <div className="flex flex-col justify-between gap-2">
-          <h1 className="font-display text-5xl font-bold">{t.list.title}</h1>
+          <div className="flex items-center gap-3">
+            <img src="/ofolam.svg" alt="" aria-hidden="true" className="h-12 w-12 shrink-0" />
+            <h1 className="font-display text-5xl font-bold">{t.list.title}</h1>
+          </div>
           {/* Desktop: under the title */}
           {coffeeLink && (
             <a

@@ -4,11 +4,26 @@ A PWA that turns a Strava activity into a shareable visual (Instagram story or p
 
 Stack: Vite + React + Tailwind v4, a Cloudflare Worker (Hono) for the API, D1 for tokens, KV for caching.
 
+## Strava apps
+
+Strava allows a single *Authorization Callback Domain* per app, so the project uses two apps
+created at https://www.strava.com/settings/api:
+
+| App | Callback domain | Where its ids go |
+|---|---|---|
+| dev | `localhost` | `.dev.vars` (`STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`) |
+| production | your domain | `wrangler.jsonc` → `vars.STRAVA_CLIENT_ID`; secret via `pnpm wrangler secret put` |
+
+In `pnpm dev`, values from `.dev.vars` override `vars` from `wrangler.jsonc`, so the worker uses the
+dev app locally and the production app once deployed, without any code change. A new Strava app is
+limited to one athlete until Strava reviews it: fine for dev, required for production before opening
+to other users.
+
 ## Local setup
 
-1. Create an app at https://www.strava.com/settings/api
-   - *Authorization Callback Domain*: `localhost` (your own domain in production)
-2. Put your `STRAVA_CLIENT_ID` in `wrangler.jsonc`.
+1. Create the **dev** Strava app (callback domain `localhost`), see above.
+2. Create `.dev.vars` from `.dev.vars.example` with the dev app's client id and secret
+   (`TOKEN_KEY`: `openssl rand -base64 32`).
 3. Create the D1 database and copy its `database_id` into `wrangler.jsonc`:
    ```sh
    pnpm wrangler d1 create ofolam
@@ -17,8 +32,7 @@ Stack: Vite + React + Tailwind v4, a Cloudflare Worker (Hono) for the API, D1 fo
    ```sh
    pnpm wrangler kv namespace create CACHE
    ```
-5. Create `.dev.vars` from `.dev.vars.example` (`TOKEN_KEY`: `openssl rand -base64 32`).
-6. Install and initialise:
+5. Install and initialise:
    ```sh
    pnpm install
    pnpm db:migrate:local
@@ -27,12 +41,34 @@ Stack: Vite + React + Tailwind v4, a Cloudflare Worker (Hono) for the API, D1 fo
 
 ## Deployment
 
-```sh
-pnpm wrangler secret put STRAVA_CLIENT_SECRET
-pnpm wrangler secret put TOKEN_KEY
-pnpm db:migrate:remote
-pnpm run deploy
-```
+First deployment, from your machine (the CI takes over afterwards):
+
+1. Create the **production** Strava app (callback domain = your domain) and put its client id in
+   `wrangler.jsonc` → `vars.STRAVA_CLIENT_ID`.
+2. Set the worker secrets once (they persist across deployments):
+   ```sh
+   pnpm wrangler secret put STRAVA_CLIENT_SECRET   # production app secret
+   pnpm wrangler secret put TOKEN_KEY              # never change it afterwards: it encrypts stored tokens
+   ```
+3. Apply the schema and deploy:
+   ```sh
+   pnpm db:migrate:remote
+   pnpm run deploy
+   ```
+
+## Continuous deployment
+
+`.github/workflows/deploy.yml` runs `pnpm lint` and `pnpm build` on every pull request towards `main`,
+and deploys on every push to `main` (migrations, then `wrangler deploy`). It needs, in the repository
+settings:
+
+- Secrets: `CLOUDFLARE_API_TOKEN` (token with the "Edit Cloudflare Workers" template plus D1 edit),
+  `CLOUDFLARE_ACCOUNT_ID`.
+- Variables (optional, bundled into the client): `VITE_COFFEE_URL`, `VITE_TILES_LIGHT`,
+  `VITE_TILES_DARK`, `VITE_TILES_ATTRIBUTION`.
+
+Worker secrets (`STRAVA_CLIENT_SECRET`, `TOKEN_KEY`) are not handled by the workflow: set them once
+with `pnpm wrangler secret put`, they persist across deployments.
 
 ## D1 migrations
 
