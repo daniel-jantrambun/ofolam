@@ -1,5 +1,6 @@
 import { useI18n } from "../i18n";
 import { startLogin } from "../lib/api";
+import { LegalLinks } from "./LegalPage";
 import SettingsMenu from "./SettingsMenu";
 
 export default function Login({ notice }: { notice?: string }) {
@@ -44,6 +45,7 @@ export default function Login({ notice }: { notice?: string }) {
         <button type="button" onClick={startLogin} className="btn btn-accent w-full min-h-14 text-lg">
           {t.login.connect}
         </button>
+        <LegalLinks />
       </div>
     </main>
   );
