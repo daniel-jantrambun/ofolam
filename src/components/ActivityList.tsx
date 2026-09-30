@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { LangSwitcher, useI18n } from "../i18n";
+import { useI18n } from "../i18n";
 import { type Activity, type ApiError, listActivities } from "../lib/api";
 import { formatDate, formatDistance, sportLabel } from "../lib/format";
-import { ThemeSwitcher } from "../theme";
+import SettingsMenu from "./SettingsMenu";
 
 type Props = {
   onSelect: (id: number) => void;
@@ -44,29 +44,31 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
 
   return (
     <main className="mx-auto max-w-xl px-5 py-6">
-      <header className="mb-6 flex flex-col md:flex-row md:items-baseline justify-between gap-2">
-        <div className="flex flex-col justify-between gap-2">
-          <div className="flex items-center gap-3">
-            <img src="/ofolam.svg" alt="" aria-hidden="true" className="h-12 w-12 shrink-0" />
-            <h1 className="font-display text-5xl font-bold">{t.list.title}</h1>
+      <header className="mb-6 flex flex-col gap-3 md:flex-row md:items-end">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-3">
+              <img src="/ofolam.svg" alt="" aria-hidden="true" className="h-12 w-12 shrink-0" />
+              <h1 className="font-display text-5xl font-bold">{t.list.title}</h1>
+            </div>
+            {/* Desktop: under the title */}
+            {coffeeLink && (
+              <a
+                href={coffeeLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="link hidden text-sm md:inline"
+              >
+                {t.coffee.label}
+              </a>
+            )}
           </div>
-          {/* Desktop: under the title */}
-          {coffeeLink && (
-            <a
-              href={coffeeLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="link hidden text-sm md:inline"
-            >
-              {t.coffee.label}
-            </a>
-          )}
+          {/* Mobile: burger on the right of the title */}
+          <SettingsMenu className="md:hidden" />
         </div>
-        <div className="flex flex-col flex-1 md:items-end gap-2">
-          <div className="flex flex-row flex-1 md:items-center justify-between gap-4">
-            <ThemeSwitcher />
-            <LangSwitcher />
-          </div>
+        <div className="flex flex-col gap-2 md:ml-auto md:items-end">
+          {/* Desktop: switchers inline */}
+          <SettingsMenu className="hidden md:block" />
           <div className="flex items-center justify-between md:justify-end md:gap-2">
             {/* Mobile: next to the sign-out link */}
             {coffeeLink && (

@@ -1,14 +1,13 @@
-import { LangSwitcher, useI18n } from "../i18n";
+import { useI18n } from "../i18n";
 import { startLogin } from "../lib/api";
-import { ThemeSwitcher } from "../theme";
+import SettingsMenu from "./SettingsMenu";
 
 export default function Login({ notice }: { notice?: string }) {
   const { t } = useI18n();
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-between px-6 py-10">
-      <div className="flex items-center justify-end gap-2">
-        <ThemeSwitcher />
-        <LangSwitcher />
+      <div className="flex justify-end">
+        <SettingsMenu />
       </div>
       <svg viewBox="0 0 320 180" className="w-full text-primary" aria-hidden="true">
         <path

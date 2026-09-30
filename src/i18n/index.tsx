@@ -83,18 +83,22 @@ export function useI18n(): I18n {
   return ctx;
 }
 
-export function LangSwitcher({ className = "" }: { className?: string }) {
+/** `onPick` fires after a choice, e.g. to close a menu holding the switcher. */
+export function LangSwitcher({ className = "", onPick }: { className?: string; onPick?: () => void }) {
   const { locale, t, setLocale } = useI18n();
   return (
-    <div role="radiogroup" aria-label={t.lang.label} className={`seg text-xs md:text-sm ${className}`}>
+    <div role="radiogroup" aria-label={t.lang.label} className={`seg seg-sm ${className}`}>
       {LOCALES.map((l) => (
         <button
           type="button"
           key={l}
           role="radio"
           aria-checked={locale === l}
-          onClick={() => setLocale(l)}
-          className="seg-item !px-2.5 uppercase"
+          onClick={() => {
+            setLocale(l);
+            onPick?.();
+          }}
+          className="seg-item uppercase"
         >
           {l}
         </button>
