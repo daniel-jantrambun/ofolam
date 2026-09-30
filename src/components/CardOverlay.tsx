@@ -182,7 +182,9 @@ export default function CardOverlay({ label, items, selected, onSelect, onChange
       ref={layerRef}
       role="application"
       aria-label={label}
-      className="absolute inset-0 touch-none select-none"
+      // The layer itself lets the page scroll (pan-y); only the element frames below block
+      // touch gestures, so a finger on empty card space scrolls and a finger on an element drags.
+      className="absolute inset-0 touch-pan-y select-none"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -194,7 +196,7 @@ export default function CardOverlay({ label, items, selected, onSelect, onChange
         return (
           <div
             key={i.key}
-            className={`pointer-events-none absolute rounded border border-dashed border-primary ${on ? (i.fixed ? "" : "cursor-move") : "opacity-0"}`}
+            className={`absolute touch-none rounded border border-dashed border-primary ${on ? (i.fixed ? "" : "cursor-move") : "opacity-0"}`}
             style={{
               left: `${i.box.x * 100}%`,
               top: `${i.box.y * 100}%`,
