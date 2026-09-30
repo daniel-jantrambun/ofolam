@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n";
 import type { Dictionary } from "../i18n/en";
 import { type Activity, type ApiError, getActivity } from "../lib/api";
+import { BRAND_COLORS, type BrandColor } from "../lib/brand";
 import { LIGHT_TINTS, NIGHT_TINTS, ROUTE_COLORS } from "../lib/colors";
 import { DEFAULT_CROP } from "../lib/crop";
 import { usesPace } from "../lib/format";
@@ -78,6 +79,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
     texts: {},
     order: [],
     brandCorner: "bl",
+    brandColor: "auto",
     t,
   });
   // Boxes drawn at the last render (route + texts): the overlay hit-tests and drags from them
@@ -665,6 +667,12 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
               {selected === "brand" && (
                 <Field label={t.editor.brandCorner}>
                   <CornerPicker value={opts.brandCorner} onChange={(c) => set("brandCorner", c)} />
+                  <p className="field-label mt-4">{t.editor.brandColor}</p>
+                  <Segmented
+                    options={BRAND_COLORS.map((c) => ({ id: c, label: t.editor.brandColors[c] }))}
+                    value={opts.brandColor}
+                    onChange={(v: BrandColor) => set("brandColor", v)}
+                  />
                   <button type="button" onClick={() => setSelected(null)} className="btn btn-outline mt-3">
                     {t.editor.routeDone}
                   </button>

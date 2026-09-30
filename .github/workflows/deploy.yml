@@ -29,6 +29,8 @@ jobs:
       - run: pnpm build
         env:
           VITE_COFFEE_URL: ${{ vars.VITE_COFFEE_URL }}
+          VITE_LEGAL_NAME: ${{ vars.VITE_LEGAL_NAME }}
+          VITE_CONTACT_EMAIL: ${{ vars.VITE_CONTACT_EMAIL }}
           VITE_TILES_LIGHT: ${{ vars.VITE_TILES_LIGHT }}
           VITE_TILES_DARK: ${{ vars.VITE_TILES_DARK }}
           VITE_TILES_ATTRIBUTION: ${{ vars.VITE_TILES_ATTRIBUTION }}
@@ -61,6 +63,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           VITE_COFFEE_URL: ${{ vars.VITE_COFFEE_URL }}
+          VITE_LEGAL_NAME: ${{ vars.VITE_LEGAL_NAME }}
+          VITE_CONTACT_EMAIL: ${{ vars.VITE_CONTACT_EMAIL }}
           VITE_TILES_LIGHT: ${{ vars.VITE_TILES_LIGHT }}
           VITE_TILES_DARK: ${{ vars.VITE_TILES_DARK }}
           VITE_TILES_ATTRIBUTION: ${{ vars.VITE_TILES_ATTRIBUTION }}

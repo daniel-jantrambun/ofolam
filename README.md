@@ -64,8 +64,8 @@ settings:
 
 - Secrets: `CLOUDFLARE_API_TOKEN` (token with the "Edit Cloudflare Workers" template plus D1 edit),
   `CLOUDFLARE_ACCOUNT_ID`.
-- Variables (optional, bundled into the client): `VITE_COFFEE_URL`, `VITE_TILES_LIGHT`,
-  `VITE_TILES_DARK`, `VITE_TILES_ATTRIBUTION`.
+- Variables (optional, bundled into the client): `VITE_COFFEE_URL`, `VITE_LEGAL_NAME`,
+  `VITE_CONTACT_EMAIL`, `VITE_TILES_LIGHT`, `VITE_TILES_DARK`, `VITE_TILES_ATTRIBUTION`.
 
 Worker secrets (`STRAVA_CLIENT_SECRET`, `TOKEN_KEY`) are not handled by the workflow: set them once
 with `pnpm wrangler secret put`, they persist across deployments.
@@ -120,6 +120,10 @@ production). Another provider can be set through `VITE_TILES_*` in `.env` (see `
 MapTiler example). The provider must send CORS headers: tiles are loaded with `crossOrigin` so the
 canvas stays exportable. Showing a map sends the route's area to the tile server.
 
+**Legal pages.** Privacy policy, terms of use and legal notice (`src/legal/`, English + French),
+served on the hash routes `#/privacy`, `#/terms`, `#/legal` and linked under the sign-in button.
+The publisher name and contact email come from `VITE_LEGAL_NAME` and `VITE_CONTACT_EMAIL`.
+
 **Sharing.**
 - *Share*: Web Share API, opens the native sheet (Instagram, WhatsApp, …). The blob is computed ahead
   of time so `navigator.share` runs directly inside the click handler (a Safari requirement).
@@ -129,8 +133,8 @@ canvas stays exportable. Showing a map sends the route's area to the tile server
 ## Before opening to other users
 
 - A new Strava app is limited to 1 athlete: request a review from Strava.
-- Brand guidelines: replace the sign-in button and the "Powered by Strava" mention with the official
-  assets (see the `TODO`s in `Login.tsx` and `render.ts`).
+- Brand guidelines: the sign-in button and the "Powered by Strava" logo are the official Strava assets
+  (`public/strava/`), used unmodified. Keep them that way.
 - Test the OAuth flow in installed mode on a real iPhone.
 
 ## Structure
