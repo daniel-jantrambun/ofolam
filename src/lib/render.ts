@@ -1,5 +1,6 @@
 import type { Dictionary } from "../i18n/en";
 import type { Activity } from "./api";
+import { BRAND_RATIO, type BrandColor, brandFile, getBrandLogo } from "./brand";
 import { contrastText, palette } from "./colors";
 import { type Crop, DEFAULT_CROP, visibleFrame } from "./crop";
 import {
@@ -108,8 +109,9 @@ export type CardOptions = {
   texts: Partial<Record<TextKey, TextStyle>>;
   /** Stacking order, deepest first. The background is always below everything. */
   order: LayerKey[];
-  /** Where the "Powered by Strava" mention sits. */
+  /** Where the "Powered by Strava" logo sits, and which of the official color variants is used. */
   brandCorner: Corner;
+  brandColor: BrandColor;
   /** Dictionary for stat labels, date and number formats. */
   t: Dictionary;
 };
@@ -129,7 +131,7 @@ const MAP_TEXT: Record<MapStyle, { fill: string; text: string }> = {
 };
 
 export type RenderHooks = {
-  /** Called when a map tile arrives after the render: the caller should redraw. */
+  /** Called when an asset (map tile, Strava logo) arrives after the render: the caller should redraw. */
   onTileLoaded?: () => void;
 };
 
@@ -174,6 +176,9 @@ export async function loadPhoto(file: File): Promise<Photo> {
 export function releasePhoto(photo: Photo | null) {
   if (photo && "close" in photo) photo.close();
 }
+
+/** Our own credit line on every picture, kept apart from the Strava mention. */
+const SITE_CREDIT = "Created on ofolam.com";
 
 const DISPLAY = FONTS.display;
 const BODY = FONTS.sans;
@@ -481,27 +486,49 @@ export function renderCard(
   // Draw deepest first
   for (const key of order) layers.get(key)?.();
 
-  // --- Strava mention: always on top, never reordered nor hidden ---
+  // --- Credits: always on top, never reordered nor hidden ---
+  // "Powered by Strava" stands alone in its corner with clear space around it (Strava brand
+  // guidelines). Our own credit and the map attribution sit on the opposite side of the same
+  // edge, stacked, so nothing reads as a co-branding with Strava.
   withShadow(() => {
-    ctx.font = `500 24px ${BODY}`;
     ctx.fillStyle = bg.text;
     ctx.globalAlpha = 0.6;
-    // TODO: replace with the official "Powered by Strava" logo (brand guidelines)
-    const brand = "Powered by Strava";
-    const bw = ctx.measureText(brand).width;
     const right = opts.brandCorner === "tr" || opts.brandCorner === "br";
     const topSide = opts.brandCorner === "tl" || opts.brandCorner === "tr";
-    const bx = right ? w - P - bw : P;
     const by = topSide ? P - 16 : h - P + 10;
-    ctx.fillText(brand, bx, by);
-    // Generous hit box: the mention is small on a phone screen
-    result.brandBox = toBox(bx - 12, by - 36, bw + 24, 48);
-    if (isMap) {
-      // Map data attribution (required by the OpenStreetMap licence), opposite corner of the same edge
-      ctx.font = `400 20px ${BODY}`;
-      const aw = ctx.measureText(MAP_ATTRIBUTION).width;
-      ctx.fillText(MAP_ATTRIBUTION, right ? P : w - P - aw, by);
+
+    // Official logo, 36 px high on a 1080 px card (Strava requires ≥ 30 px at 1×)
+    const logoH = 36;
+    const logoW = logoH * BRAND_RATIO;
+    const bx = right ? w - P - logoW : P;
+    const logoTop = by - logoH + 6; // sit on the same baseline as the credit text
+    const logo = getBrandLogo(brandFile(opts.brandColor, bg.text), hooks.onTileLoaded);
+    if (logo) {
+      ctx.globalAlpha = 1;
+      ctx.drawImage(logo, bx, logoTop, logoW, logoH);
+      ctx.globalAlpha = 0.6;
+    } else {
+      // Logo not loaded yet: plain text placeholder at the same spot
+      ctx.font = `500 24px ${BODY}`;
+      ctx.fillText("Powered by Strava", bx, by);
+      result.complete = false;
     }
+    // Generous hit box with clear space around the logo
+    result.brandBox = toBox(bx - 12, logoTop - 12, logoW + 24, logoH + 24);
+
+    // Opposite side: our credit (same size as the logo's wordmark), then the map attribution
+    // stacked above/below it when the map is shown
+    const credits: { text: string; font: string }[] = [
+      { text: SITE_CREDIT, font: `500 26px ${BODY}` },
+      ...(isMap ? [{ text: MAP_ATTRIBUTION, font: `400 20px ${BODY}` }] : []),
+    ];
+    credits.forEach(({ text, font }, i) => {
+      ctx.font = font;
+      const tw = ctx.measureText(text).width;
+      // Stack away from the edge: upwards at the bottom, downwards at the top
+      const y = topSide ? by + 30 * i : by - 30 * i;
+      ctx.fillText(text, right ? P : w - P - tw, y);
+    });
     ctx.globalAlpha = 1;
   });
 

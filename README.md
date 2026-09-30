@@ -133,8 +133,8 @@ The publisher name and contact email come from `VITE_LEGAL_NAME` and `VITE_CONTA
 ## Before opening to other users
 
 - A new Strava app is limited to 1 athlete: request a review from Strava.
-- Brand guidelines: replace the sign-in button and the "Powered by Strava" mention with the official
-  assets (see the `TODO`s in `Login.tsx` and `render.ts`).
+- Brand guidelines: the sign-in button and the "Powered by Strava" logo are the official Strava assets
+  (`public/strava/`), used unmodified. Keep them that way.
 - Test the OAuth flow in installed mode on a real iPhone.
 
 ## Structure

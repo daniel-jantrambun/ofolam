@@ -30,20 +30,25 @@ export default function Login({ notice }: { notice?: string }) {
         <circle cx="302" cy="30" r="11" fill="currentColor" />
       </svg>
 
-      <div>
+      <div className="text-center">
         <h1 className="font-display text-7xl leading-[0.9] font-bold">{t.login.title}</h1>
-        <p className="mt-5 max-w-[34ch] text-lg text-muted">{t.login.subtitle}</p>
+        <p className="mx-auto mt-5 max-w-[34ch] text-lg text-muted">{t.login.subtitle}</p>
       </div>
 
       <div className="space-y-4">
         {notice && (
-          <p role="status" className="notice">
+          <p role="status" className="notice text-center">
             {notice}
           </p>
         )}
-        {/* Strava brand guidelines: replace with the official "Connect with Strava" button */}
-        <button type="button" onClick={startLogin} className="btn btn-accent w-full min-h-14 text-lg">
-          {t.login.connect}
+        {/* Official "Connect with Strava" button (brand guidelines): used as-is, never restyled */}
+        <button
+          type="button"
+          onClick={startLogin}
+          aria-label={t.login.connect}
+          className="mx-auto block rounded-md transition-transform active:scale-[0.98]"
+        >
+          <img src="/strava/connect-with-strava-orange.svg" alt="" className="h-12 w-auto" />
         </button>
         <LegalLinks />
       </div>

@@ -84,6 +84,8 @@ export const en = {
     centerH: "Center horizontally",
     centerV: "Center vertically",
     brandCorner: "“Powered by Strava” position",
+    brandColor: "Logo color",
+    brandColors: { auto: "Auto", black: "Black", white: "White", orange: "Orange" },
     corners: { tl: "Top left", tr: "Top right", bl: "Bottom left", br: "Bottom right" },
     routeLayout: "Route position",
     routeHint: "Drag to move, pinch to resize. Tap outside the frame to confirm.",

@@ -67,7 +67,7 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
           <SettingsMenu className="md:hidden" />
         </div>
         <div className="flex flex-col gap-2 md:ml-auto md:items-end">
-          {/* Desktop: switchers inline */}
+          {/* Desktop: burger above the sign-out link */}
           <SettingsMenu className="hidden md:block" />
           <div className="flex items-center justify-between md:justify-end md:gap-2">
             {/* Mobile: next to the sign-out link */}

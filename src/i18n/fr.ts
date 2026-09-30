@@ -86,6 +86,8 @@ export const fr: Dictionary = {
     centerH: "Centrer horizontalement",
     centerV: "Centrer verticalement",
     brandCorner: "Position de « Powered by Strava »",
+    brandColor: "Couleur du logo",
+    brandColors: { auto: "Auto", black: "Noir", white: "Blanc", orange: "Orange" },
     corners: { tl: "En haut à gauche", tr: "En haut à droite", bl: "En bas à gauche", br: "En bas à droite" },
     routeLayout: "Position du tracé",
     routeHint: "Glisse pour déplacer, pince pour redimensionner. Touche en dehors du cadre pour valider.",

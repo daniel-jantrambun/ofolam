@@ -3,8 +3,8 @@ import { LangSwitcher, useI18n } from "../i18n";
 import { ThemeSwitcher } from "../theme";
 
 /**
- * Theme + language switchers. Inline on desktop; behind a burger button that opens a small
- * popover on mobile. Closes on outside click, Escape, or after picking an option.
+ * Theme + language switchers behind a burger button that opens a small popover.
+ * Closes on outside click, Escape, or after picking an option.
  */
 export default function SettingsMenu({ className = "" }: { className?: string }) {
   const { t } = useI18n();
@@ -28,13 +28,6 @@ export default function SettingsMenu({ className = "" }: { className?: string })
 
   return (
     <div ref={rootRef} className={`relative ${className}`}>
-      {/* Desktop: inline */}
-      <div className="hidden items-center gap-3 md:flex">
-        <ThemeSwitcher />
-        <LangSwitcher />
-      </div>
-
-      {/* Mobile: burger + popover */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -42,7 +35,7 @@ export default function SettingsMenu({ className = "" }: { className?: string })
         aria-controls={panelId}
         aria-label={t.settings.label}
         title={t.settings.label}
-        className="btn btn-outline btn-sm !px-2.5 md:hidden"
+        className="btn btn-outline btn-sm !px-2.5"
       >
         <svg
           viewBox="0 0 24 24"
@@ -57,7 +50,7 @@ export default function SettingsMenu({ className = "" }: { className?: string })
         </svg>
       </button>
       {open && (
-        <div id={panelId} className="card absolute right-0 top-full z-20 mt-2 w-max space-y-3 p-3 md:hidden">
+        <div id={panelId} className="card absolute right-0 top-full z-20 mt-2 w-max space-y-3 p-3">
           {/* Any choice closes the panel */}
           <div>
             <p className="field-label">{t.theme.label}</p>
