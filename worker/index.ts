@@ -153,14 +153,21 @@ const toActivity = (a: StravaActivity) => ({
 app.get("/activities", async (c) => {
   const page = Math.max(1, Number(c.req.query("page") ?? 1) || 1);
   const athleteId = c.get("athleteId");
-  const list = await cached(c.env, listKey(athleteId, page), LIST_TTL_S, async () => {
-    const raw = await stravaGet<StravaActivity[]>(
-      c.env,
-      athleteId,
-      `/athlete/activities?per_page=20&page=${page}`,
-    );
-    return raw.map(toActivity);
-  });
+  const fresh = c.req.query("fresh") === "1";
+  const list = await cached(
+    c.env,
+    listKey(athleteId, page),
+    LIST_TTL_S,
+    async () => {
+      const raw = await stravaGet<StravaActivity[]>(
+        c.env,
+        athleteId,
+        `/athlete/activities?per_page=20&page=${page}`,
+      );
+      return raw.map(toActivity);
+    },
+    fresh,
+  );
   return c.json(list);
 });
 
@@ -169,10 +176,17 @@ app.get("/activities/:id", async (c) => {
   if (!/^\d+$/.test(id)) return c.json({ error: "invalid_id" }, 400);
   const athleteId = c.get("athleteId");
   // The detail carries `map.polyline`, more precise than the list's summary_polyline
-  const activity = await cached(c.env, activityKey(athleteId, id), ACTIVITY_TTL_S, async () => {
-    const raw = await stravaGet<StravaActivity>(c.env, athleteId, `/activities/${id}`);
-    return toActivity(raw);
-  });
+  const fresh = c.req.query("fresh") === "1";
+  const activity = await cached(
+    c.env,
+    activityKey(athleteId, id),
+    ACTIVITY_TTL_S,
+    async () => {
+      const raw = await stravaGet<StravaActivity>(c.env, athleteId, `/activities/${id}`);
+      return toActivity(raw);
+    },
+    fresh,
+  );
   return c.json(activity);
 });
 

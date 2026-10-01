@@ -3,7 +3,7 @@ import type { Dictionary } from "./en";
 export const fr: Dictionary = {
   locale: "fr-FR",
   theme: { label: "Thème", light: "Clair", dark: "Sombre", system: "Système" },
-  settings: { label: "Réglages" },
+  settings: { label: "Réglages", refresh: "Actualiser depuis Strava" },
   lang: { label: "Langue", en: "English", fr: "Français" },
   coffee: { label: "Offre-moi un café" },
   login: {

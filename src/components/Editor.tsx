@@ -202,6 +202,17 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
     });
   }, [activityId, onSessionLost]);
 
+  /** "Refresh" menu entry: reload this activity from Strava, bypassing both caches. */
+  const refreshActivity = async () => {
+    try {
+      setActivity(await getActivity(activityId, true).fresh);
+      setError(null);
+    } catch (e) {
+      if ((e as ApiError).status === 401) return onSessionLost();
+      setError(e as ApiError);
+    }
+  };
+
   // Render + precomputed blob: navigator.share must fire without waiting inside the click
   useEffect(() => {
     void tileTick; // a new tile arrived: redraw with it
@@ -428,7 +439,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
             </svg>
           </button>
           <div className="flex justify-end">
-            <SettingsMenu />
+            <SettingsMenu onRefresh={refreshActivity} />
           </div>
         </div>
       </div>

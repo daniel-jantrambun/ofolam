@@ -20,9 +20,18 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
   // Optional "Buy me a coffee" link, set through VITE_COFFEE_URL in .env (see .env.example)
   const coffeeLink = import.meta.env.VITE_COFFEE_URL;
 
+  // Bumped by the "Refresh" menu entry: refetches page 1 past both caches
+  const [refreshTick, setRefreshTick] = useState(0);
+  const refresh = () =>
+    new Promise<void>((resolve) => {
+      setPage(1);
+      setRefreshTick((n) => n + 1);
+      resolve();
+    });
+
   useEffect(() => {
     let cancelled = false;
-    const { cached, fresh } = listActivities(page);
+    const { cached, fresh } = listActivities(page, refreshTick > 0 && page === 1);
     const apply = (list: Activity[]) => {
       setItems((prev) => (page === 1 ? list : [...prev, ...list]));
       setHasMore(list.length === 20);
@@ -40,7 +49,7 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
     return () => {
       cancelled = true;
     };
-  }, [page, onSessionLost]);
+  }, [page, onSessionLost, refreshTick]);
 
   return (
     <main className="mx-auto max-w-xl px-5 py-6">
@@ -64,11 +73,11 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
             )}
           </div>
           {/* Mobile: burger on the right of the title */}
-          <SettingsMenu className="md:hidden" />
+          <SettingsMenu className="md:hidden" onRefresh={refresh} />
         </div>
         <div className="flex flex-col gap-2 md:ml-auto md:items-end">
           {/* Desktop: burger above the sign-out link */}
-          <SettingsMenu className="hidden md:block" />
+          <SettingsMenu className="hidden md:block" onRefresh={refresh} />
           <div className="flex items-center justify-between md:justify-end md:gap-2">
             {/* Mobile: next to the sign-out link */}
             {coffeeLink && (

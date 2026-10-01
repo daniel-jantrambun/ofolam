@@ -15,8 +15,10 @@ export async function cached<T>(
   key: string,
   ttlSeconds: number,
   loader: () => Promise<T>,
+  /** Skip the cached value (user-requested refresh); the fresh result is still stored. */
+  bypass = false,
 ): Promise<T> {
-  const hit = await env.CACHE.get<T>(key, "json");
+  const hit = bypass ? null : await env.CACHE.get<T>(key, "json");
   if (hit !== null) return hit;
   const value = await loader();
   await env.CACHE.put(key, JSON.stringify(value), { expirationTtl: ttlSeconds });

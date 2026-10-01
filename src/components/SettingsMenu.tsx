@@ -6,9 +6,17 @@ import { ThemeSwitcher } from "../theme";
  * Theme + language switchers behind a burger button that opens a small popover.
  * Closes on outside click, Escape, or after picking an option.
  */
-export default function SettingsMenu({ className = "" }: { className?: string }) {
+export default function SettingsMenu({
+  className = "",
+  onRefresh,
+}: {
+  className?: string;
+  /** When given, a "Refresh" entry reloads the current data from Strava, bypassing caches. */
+  onRefresh?: () => Promise<void> | void;
+}) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
 
@@ -52,6 +60,36 @@ export default function SettingsMenu({ className = "" }: { className?: string })
       {open && (
         <div id={panelId} className="card absolute right-0 top-full z-20 mt-2 w-max space-y-3 p-3">
           {/* Any choice closes the panel */}
+          {onRefresh && (
+            <button
+              type="button"
+              disabled={refreshing}
+              onClick={async () => {
+                setRefreshing(true);
+                try {
+                  await onRefresh();
+                } finally {
+                  setRefreshing(false);
+                  setOpen(false);
+                }
+              }}
+              className="btn btn-outline btn-sm w-full justify-start"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 12a8 8 0 1 1-2.3-5.7 M20 4v5h-5" />
+              </svg>
+              {t.settings.refresh}
+            </button>
+          )}
           <div>
             <p className="field-label">{t.theme.label}</p>
             <ThemeSwitcher onPick={() => setOpen(false)} />

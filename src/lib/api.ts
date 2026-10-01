@@ -96,20 +96,21 @@ export type Cached<T> = { cached: T | null; fresh: Promise<T> };
 const LIST_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const ACTIVITY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
-export function listActivities(page = 1): Cached<Activity[]> {
+/** `refresh` bypasses both caches (local and worker) and refetches from Strava. */
+export function listActivities(page = 1, refresh = false): Cached<Activity[]> {
   const key = `activities.p${page}`;
-  const cached = page === 1 ? cache.get<Activity[]>(key, LIST_MAX_AGE_MS) : null;
-  const fresh = api<Activity[]>(`/activities?page=${page}`).then((list) => {
+  const cached = page === 1 && !refresh ? cache.get<Activity[]>(key, LIST_MAX_AGE_MS) : null;
+  const fresh = api<Activity[]>(`/activities?page=${page}${refresh ? "&fresh=1" : ""}`).then((list) => {
     if (page === 1) cache.set(key, list);
     return list;
   });
   return { cached, fresh };
 }
 
-export function getActivity(id: number): Cached<Activity> {
+export function getActivity(id: number, refresh = false): Cached<Activity> {
   const key = `activity.${id}`;
-  const cached = cache.get<Activity>(key, ACTIVITY_MAX_AGE_MS);
-  const fresh = api<Activity>(`/activities/${id}`).then((a) => {
+  const cached = refresh ? null : cache.get<Activity>(key, ACTIVITY_MAX_AGE_MS);
+  const fresh = api<Activity>(`/activities/${id}${refresh ? "?fresh=1" : ""}`).then((a) => {
     cache.set(key, a);
     return a;
   });
