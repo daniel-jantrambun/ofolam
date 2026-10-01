@@ -130,7 +130,8 @@ defined once in `src/index.css` and redefined for the dark theme; the exported i
 post 1080×1350, square 1080×1080, landscape 1920×1080. The Strava polyline is decoded and projected
 in Web Mercator (`src/lib/polyline.ts`). The editor lets you move, resize and stack the route and
 every text block, style texts (font, color, size), align a multi-selection, crop a background photo,
-and undo/redo (`src/components/Editor.tsx`).
+and undo/redo (`src/components/Editor.tsx`). The last used settings (background, format, elements,
+styles, …) are remembered in localStorage and applied to the next activity.
 
 **Map background.** The "Map" background draws raster tiles in the exact projection of the route
 (`src/lib/tiles.ts`): the map follows the route's box. Default provider: Stadia Maps (OpenStreetMap

@@ -1,15 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useI18n } from "../i18n";
 import type { Dictionary } from "../i18n/en";
 import { type Activity, type ApiError, getActivity } from "../lib/api";
 import { BRAND_COLORS, type BrandColor } from "../lib/brand";
 import { LIGHT_TINTS, NIGHT_TINTS, ROUTE_COLORS } from "../lib/colors";
-import { DEFAULT_CROP } from "../lib/crop";
+import { type Crop, DEFAULT_CROP } from "../lib/crop";
 import { usesPace } from "../lib/format";
 import {
   type Background,
   type Box,
   type CardOptions,
+  type Corner,
   DEFAULT_TEXT_STYLE,
   ensureFonts,
   type Format,
@@ -33,7 +34,7 @@ import CardOverlay, { type BoxChange, type OverlayItem } from "./CardOverlay";
 import ColorPicker from "./ColorPicker";
 import CornerPicker from "./CornerPicker";
 import PhotoCropper from "./PhotoCropper";
-import SettingsMenu from "./SettingsMenu";
+import SettingsMenu, { type MenuAction } from "./SettingsMenu";
 import TextStylePanel from "./TextStylePanel";
 
 type Props = { activityId: number; onBack: () => void; onSessionLost: () => void };
@@ -69,27 +70,29 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   const [toast, setToast] = useState<string | null>(null);
   const { resolved } = useTheme();
   const [fontsReady, setFontsReady] = useState(false);
-  const [opts, setOpts] = useState<CardOptions>({
-    format: "post" as Format,
-    background: resolved === "dark" ? "night" : "topo",
+  const [opts, setOpts] = useState<CardOptions>(() => ({
+    format: "square" as Format,
+    background: resolved === "dark" ? "night" : ("topo" as Background),
     routeColor: ROUTE_COLORS[0],
-    stats: ["distance", "time", "pace"],
+    stats: ["distance", "time", "pace"] as StatKey[],
     showName: true,
     showMeta: true,
     showRoute: true,
     routeTrim: 200,
     photo: null,
-    photoCrop: DEFAULT_CROP,
+    photoCrop: DEFAULT_CROP as Crop,
     mapStyle: "bright" as MapStyle,
     mapOpacity: 1,
     bgTint: { topo: null, night: null },
     routeBox: null,
     texts: {},
-    order: [],
-    brandCorner: "bl",
-    brandColor: "auto",
+    order: [] as LayerKey[],
+    brandCorner: "bl" as Corner,
+    brandColor: "auto" as BrandColor,
+    creditColor: null,
+    ...loadPrefs(),
     t,
-  });
+  }));
   // Boxes drawn at the last render (route + texts): the overlay hit-tests and drags from them
   const [drawn, setDrawn] = useState<RenderResult | null>(null);
   // Selected elements on the preview ("route", "brand" or text keys); the last one is primary.
@@ -147,6 +150,11 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
       h.committed = opts;
       setHistoryTick((n) => n + 1);
     }, COMMIT_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [opts]);
+  // Remember the settings for the next activity (debounced like the history)
+  useEffect(() => {
+    const timer = window.setTimeout(() => savePrefs(opts), 500);
     return () => window.clearTimeout(timer);
   }, [opts]);
   const undo = () => {
@@ -282,6 +290,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
       .map((key) => ({ key, box: boxes[key]!, resizable: key === "route" })),
     // The mention is always on top and only moves between corners
     ...(drawn ? [{ key: "brand", box: drawn.brandBox, fixed: true }] : []),
+    ...(drawn ? [{ key: "credit", box: drawn.creditBox, fixed: true }] : []),
   ];
 
   /** Moves the selected layer: one step up (towards the viewer) or down, or straight to the top or bottom. */
@@ -308,7 +317,9 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
     onOverlayChange([{ key, box: next }]);
   };
   // Text blocks of the multi-selection, and the style values they share (first one when mixed)
-  const selectedTexts = selection.filter((k): k is TextKey => k !== "route" && k !== "brand");
+  const selectedTexts = selection.filter(
+    (k): k is TextKey => k !== "route" && k !== "brand" && k !== "credit",
+  );
   const styleOfKey = (k: TextKey) => opts.texts[k] ?? DEFAULT_TEXT_STYLE;
   const commonSize = selectedTexts.length ? (styleOfKey(selectedTexts[0]).size ?? 1) : 1;
   const commonColor = selectedTexts.length
@@ -365,7 +376,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
       let routeBox = o.routeBox;
       for (const { key, box } of changes) {
         if (key === "route") routeBox = box;
-        else if (key !== "brand") {
+        else if (key !== "brand" && key !== "credit") {
           const textKey = key as TextKey;
           texts[textKey] = { ...(texts[textKey] ?? DEFAULT_TEXT_STYLE), pos: { x: box.x, y: box.y } };
         }
@@ -373,7 +384,8 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
       return { ...o, texts, routeBox };
     });
   };
-  const isTextKey = (k: string | null): k is TextKey => k !== null && k !== "route" && k !== "brand";
+  const isTextKey = (k: string | null): k is TextKey =>
+    k !== null && k !== "route" && k !== "brand" && k !== "credit";
   const selectedText = isTextKey(selected) ? selected : null;
   const textLabel = (key: TextKey) => {
     if (key === "title") return t.editor.showTitleName;
@@ -389,60 +401,103 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
     { id: "elevation", label: t.stats.elevation },
   ];
 
+  const UndoRedo = ({ size = "sm" }: { size?: "sm" | "nav" }) => {
+    // "nav": two compact rows stacked at the end of the mobile tab bar
+    const cls =
+      size === "nav"
+        ? "flex items-center justify-center rounded-lg p-1.5 text-muted transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-40"
+        : "btn btn-outline btn-sm";
+    const icon = (d: string) => (
+      <svg
+        viewBox="0 0 24 24"
+        className="h-4 w-4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={size === "nav" ? "1.8" : "2"}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d={d} />
+      </svg>
+    );
+    return (
+      <>
+        <button
+          type="button"
+          onClick={undo}
+          disabled={!canUndo}
+          className={cls}
+          title={t.editor.undo}
+          aria-label={t.editor.undo}
+        >
+          {icon("M9 14L4 9l5-5 M4 9h10a6 6 0 010 12h-3")}
+        </button>
+        <button
+          type="button"
+          onClick={redo}
+          disabled={!canRedo}
+          className={cls}
+          title={t.editor.redo}
+          aria-label={t.editor.redo}
+        >
+          {icon("M15 14l5-5-5-5 M20 9H10a6 6 0 000 12h3")}
+        </button>
+      </>
+    );
+  };
+
+  // Primary action: native share when the device supports it, otherwise copy the sticker.
+  // Copy / download live in the menu next to it.
+  const ShareButton = ({ compact = false }: { compact?: boolean }) => (
+    <button
+      type="button"
+      onClick={canShareFiles() ? onShare : onCopy}
+      disabled={!activity}
+      aria-label={canShareFiles() ? t.editor.share : t.editor.copyShort}
+      title={canShareFiles() ? t.editor.share : t.editor.copyShort}
+      className={`btn btn-primary whitespace-nowrap ${compact ? "btn-sm !px-3" : ""}`}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className="h-4 w-4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d={SHARE_ICON} />
+      </svg>
+      {/* Compact (mobile bar): icon only, the label stays as accessible name */}
+      {!compact && (canShareFiles() ? t.editor.share : t.editor.copyShort)}
+    </button>
+  );
+  // Menu entries: back to the list, then the secondary ways to export the picture
+  const menuActions: MenuAction[] = [
+    { label: t.editor.back, onClick: onBack },
+    ...(canShareFiles() ? [{ label: t.editor.copy, onClick: onCopy, disabled: !activity }] : []),
+    { label: t.editor.download, onClick: () => void onDownload(), disabled: !activity },
+  ];
+
+  const Navbar = ({ className }: { className?: string }) => (
+    <div className={`flex items-center justify-between ${className ?? ""}`}>
+      <button type="button" onClick={onBack} className="link">
+        {t.editor.back}
+      </button>
+      <div className="flex items-center gap-2">
+        <UndoRedo />
+        <SettingsMenu onRefresh={refreshActivity} actions={menuActions} />
+        <ShareButton />
+      </div>
+    </div>
+  );
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 pb-28 sm:px-5 lg:pb-6">
-      <div className="mb-4 flex items-center justify-between">
-        <button type="button" onClick={onBack} className="link">
-          {t.editor.back}
-        </button>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={undo}
-            disabled={!canUndo}
-            className="btn btn-outline btn-sm"
-            title={t.editor.undo}
-            aria-label={t.editor.undo}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M9 14L4 9l5-5 M4 9h10a6 6 0 010 12h-3" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={redo}
-            disabled={!canRedo}
-            className="btn btn-outline btn-sm"
-            title={t.editor.redo}
-            aria-label={t.editor.redo}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M15 14l5-5-5-5 M20 9H10a6 6 0 000 12h3" />
-            </svg>
-          </button>
-          <div className="flex justify-end">
-            <SettingsMenu onRefresh={refreshActivity} />
-          </div>
-        </div>
-      </div>
+      {/* Desktop: toolbar at the top */}
+      <Navbar className="mb-4 hidden lg:flex" />
 
       {error && (
         <p role="alert" className="notice mb-4">
@@ -455,11 +510,13 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
         <EditorNav tab={tab} onChange={setTab} orientation="vertical" className="hidden self-start lg:flex" />
 
         <div
-          className={`relative self-start overflow-hidden rounded-[var(--radius-card)] border border-border shadow-[var(--shadow-card)] ${opts.background === "transparent" ? "checker" : ""}`}
+          // Shrinks to the canvas so the overlay matches it; on phones the canvas is capped to
+          // half the screen so the controls stay visible without scrolling.
+          className={`relative mx-auto w-fit max-w-full self-start overflow-hidden rounded-[var(--radius-card)] border border-border shadow-[var(--shadow-card)] lg:mx-0 ${opts.background === "transparent" ? "checker" : ""}`}
         >
           <canvas
             ref={canvasRef}
-            className="block h-auto w-full"
+            className="block h-auto max-h-[50vh] w-auto max-w-full lg:max-h-none lg:w-full"
             role="img"
             aria-label={activity ? t.editor.previewFor(activity.name) : t.editor.preview}
           />
@@ -476,14 +533,10 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
         </div>
 
         <section className="card min-w-0 space-y-7 p-4 sm:p-6">
-          {activity && <h1 className="font-display text-4xl font-bold leading-tight">{activity.name}</h1>}
+          {/* {activity && <h1 className="font-display text-4xl font-bold leading-tight">{activity.name}</h1>} */}
 
           {tab === "layout" && (
             <>
-              <Field label={t.editor.format}>
-                <Segmented options={formats(t)} value={opts.format} onChange={(v) => set("format", v)} />
-              </Field>
-
               <Field label={t.editor.background}>
                 <Segmented
                   options={backgrounds(t)}
@@ -583,6 +636,9 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                   </button>
                 </Field>
               )}
+              <Field label={t.editor.format}>
+                <Segmented options={formats(t)} value={opts.format} onChange={(v) => set("format", v)} />
+              </Field>
             </>
           )}
 
@@ -632,6 +688,13 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                   </Pill>
                 ))}
               </div>
+              {activity?.polyline && opts.showRoute && (
+                <div className="mt-5 space-y-3 border-t border-border pt-4">
+                  <p className="field-label">{t.editor.elementRoute}</p>
+                  <ColorPicker value={opts.routeColor} onChange={(c) => c && set("routeColor", c)} />
+                  <RouteTrim value={opts.routeTrim} onChange={(v) => set("routeTrim", v)} />
+                </div>
+              )}
             </Field>
           )}
 
@@ -686,16 +749,25 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
 
               {selectedText && (
                 <Field label={`${t.editor.textLayout} · ${textLabel(selectedText)}`}>
-                  <LayerButtons
-                    up={canMoveUp(selectedText)}
-                    down={canMoveDown(selectedText)}
-                    onMove={(d) => moveLayer(selectedText, d)}
-                  />
-                  <CenterButtons onCenter={(axis) => centerLayer(selectedText, axis)} />
                   <TextStylePanel
                     value={opts.texts[selectedText] ?? DEFAULT_TEXT_STYLE}
                     onChange={(style) => set("texts", { ...opts.texts, [selectedText]: style })}
                   />
+                  <div className="mt-4 border-t border-border pt-4">
+                    <LayerButtons
+                      up={canMoveUp(selectedText)}
+                      down={canMoveDown(selectedText)}
+                      onMove={(d) => moveLayer(selectedText, d)}
+                    />
+                    <CenterButtons onCenter={(axis) => centerLayer(selectedText, axis)} />
+                  </div>
+                </Field>
+              )}
+
+              {selected === "credit" && (
+                <Field label={t.editor.creditColor}>
+                  <ColorPicker value={opts.creditColor} onChange={(c) => set("creditColor", c)} allowAuto />
+                  <p className="mt-2 text-xs text-muted">{t.editor.creditHint}</p>
                 </Field>
               )}
 
@@ -721,23 +793,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                   />
                   <CenterButtons onCenter={(axis) => centerLayer("route", axis)} />
                   <div className="mb-4">
-                    <div className="flex items-center justify-between text-sm">
-                      <label htmlFor="route-trim" className="text-muted">
-                        {t.editor.routeTrim}
-                      </label>
-                      <span className="text-muted">{opts.routeTrim} m</span>
-                    </div>
-                    <input
-                      id="route-trim"
-                      type="range"
-                      min={0}
-                      max={1000}
-                      step={50}
-                      value={opts.routeTrim}
-                      onChange={(e) => set("routeTrim", Number.parseInt(e.target.value, 10))}
-                      className="range w-full"
-                    />
-                    <p className="mt-1 text-xs text-muted">{t.editor.routeTrimHint}</p>
+                    <RouteTrim value={opts.routeTrim} onChange={(v) => set("routeTrim", v)} />
                   </div>
                   <p className="mb-2 text-sm text-muted">{t.editor.routeColor}</p>
                   <div className="mb-4">
@@ -773,22 +829,6 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
               )}
             </>
           )}
-
-          {tab === "share" && (
-            <div className="flex flex-col gap-3 sm:flex-row">
-              {canShareFiles() && (
-                <button type="button" onClick={onShare} disabled={!activity} className="btn btn-primary">
-                  {t.editor.share}
-                </button>
-              )}
-              <button type="button" onClick={onCopy} disabled={!activity} className="btn btn-outline">
-                {t.editor.copy}
-              </button>
-              <button type="button" onClick={onDownload} disabled={!activity} className="btn btn-ghost">
-                {t.editor.download}
-              </button>
-            </div>
-          )}
         </section>
       </div>
 
@@ -798,6 +838,18 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
         onChange={setTab}
         orientation="horizontal"
         className="fixed inset-x-0 bottom-0 z-10 flex border-t border-border bg-background/85 backdrop-blur pb-[env(safe-area-inset-bottom)] lg:hidden"
+        trailing={
+          <>
+            <span className="mx-1 my-2 w-px bg-border" aria-hidden="true" />
+            <div className="flex flex-col justify-center gap-0.5 px-1">
+              <UndoRedo size="nav" />
+            </div>
+            <div className="flex items-center gap-1.5 pr-1">
+              <SettingsMenu onRefresh={refreshActivity} actions={menuActions} />
+              <ShareButton compact />
+            </div>
+          </>
+        }
       />
 
       {toast && (
@@ -812,6 +864,69 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   );
 }
 
+/**
+ * Settings worth keeping between activities: everything that is not tied to one activity
+ * (positions, photo, crop are dropped; text styles are kept without their positions).
+ */
+const PREFS_KEY = "ofolam.editorPrefs";
+type EditorPrefs = Partial<
+  Pick<
+    CardOptions,
+    | "format"
+    | "background"
+    | "mapStyle"
+    | "mapOpacity"
+    | "bgTint"
+    | "routeColor"
+    | "stats"
+    | "showName"
+    | "showMeta"
+    | "showRoute"
+    | "routeTrim"
+    | "order"
+    | "brandCorner"
+    | "brandColor"
+    | "creditColor"
+    | "texts"
+  >
+>;
+function loadPrefs(): EditorPrefs {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    return raw ? (JSON.parse(raw) as EditorPrefs) : {};
+  } catch {
+    return {};
+  }
+}
+function savePrefs(o: CardOptions) {
+  const texts: CardOptions["texts"] = {};
+  for (const [k, v] of Object.entries(o.texts))
+    if (v) texts[k as keyof CardOptions["texts"]] = { ...v, pos: null };
+  const prefs: EditorPrefs = {
+    format: o.format,
+    background: o.background === "photo" ? "night" : o.background,
+    mapStyle: o.mapStyle,
+    mapOpacity: o.mapOpacity,
+    bgTint: o.bgTint,
+    routeColor: o.routeColor,
+    stats: o.stats,
+    showName: o.showName,
+    showMeta: o.showMeta,
+    showRoute: o.showRoute,
+    routeTrim: o.routeTrim,
+    order: o.order,
+    brandCorner: o.brandCorner,
+    brandColor: o.brandColor,
+    creditColor: o.creditColor,
+    texts,
+  };
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    // storage unavailable: preferences just won't persist
+  }
+}
+
 /** True when the two option sets differ only by the dictionary (language switch). */
 function sameExceptDictionary(a: CardOptions, b: CardOptions): boolean {
   for (const key of Object.keys(a) as (keyof CardOptions)[]) {
@@ -821,14 +936,14 @@ function sameExceptDictionary(a: CardOptions, b: CardOptions): boolean {
   return true;
 }
 
-type Tab = "layout" | "elements" | "style" | "share";
+type Tab = "layout" | "elements" | "style";
 const TABS: { id: Tab; icon: string }[] = [
   // Simple line icons (24×24 viewBox paths), no icon library needed
   { id: "layout", icon: "M4 5h16v14H4z M4 12h16" },
   { id: "elements", icon: "M5 7h14 M5 12h14 M5 17h9" },
   { id: "style", icon: "M12 3l2.5 5.5L20 9l-4 4 1 6-5-2.7L7 19l1-6-4-4 5.5-.5z" },
-  { id: "share", icon: "M12 16V4 M8 8l4-4 4 4 M5 14v6h14v-6" },
 ];
+const SHARE_ICON = "M12 16V4 M8 8l4-4 4 4 M5 14v6h14v-6";
 
 /** Section switcher: a vertical rail on desktop, a bottom bar on mobile. */
 function EditorNav({
@@ -836,11 +951,14 @@ function EditorNav({
   onChange,
   orientation,
   className = "",
+  trailing,
 }: {
   tab: Tab;
   onChange: (t: Tab) => void;
   orientation: "vertical" | "horizontal";
   className?: string;
+  /** Extra controls rendered after the tabs (mobile: undo / redo). */
+  trailing?: React.ReactNode;
 }) {
   const { t } = useI18n();
   const vertical = orientation === "vertical";
@@ -875,6 +993,7 @@ function EditorNav({
           </button>
         );
       })}
+      {trailing}
     </nav>
   );
 }
@@ -1006,6 +1125,33 @@ function CenterButtons({ onCenter }: { onCenter: (axis: "x" | "y") => void }) {
       <button type="button" onClick={() => onCenter("y")} className={cls}>
         {t.editor.centerV}
       </button>
+    </div>
+  );
+}
+
+/** Privacy slider: meters hidden at both ends of the route. */
+function RouteTrim({ value, onChange }: { value: number; onChange: (meters: number) => void }) {
+  const { t } = useI18n();
+  const id = useId();
+  return (
+    <div>
+      <div className="flex items-center justify-between text-sm">
+        <label htmlFor={id} className="text-muted">
+          {t.editor.routeTrim}
+        </label>
+        <span className="text-muted">{value} m</span>
+      </div>
+      <input
+        id={id}
+        type="range"
+        min={0}
+        max={1000}
+        step={50}
+        value={value}
+        onChange={(e) => onChange(Number.parseInt(e.target.value, 10))}
+        className="range w-full"
+      />
+      <p className="mt-1 text-xs text-muted">{t.editor.routeTrimHint}</p>
     </div>
   );
 }

@@ -85,6 +85,8 @@ export type RenderResult = {
   order: LayerKey[];
   /** Box of the "Powered by Strava" mention, so it can be selected on the preview. */
   brandBox: Box;
+  /** Box of the "Created on ofolam.com" credit, so it can be selected on the preview. */
+  creditBox: Box;
 };
 
 export type CardOptions = {
@@ -116,6 +118,8 @@ export type CardOptions = {
   /** Where the "Powered by Strava" logo sits, and which of the official color variants is used. */
   brandCorner: Corner;
   brandColor: BrandColor;
+  /** Color of the "Created on ofolam.com" credit; null = background's text color. */
+  creditColor: string | null;
   /** Dictionary for stat labels, date and number formats. */
   t: Dictionary;
 };
@@ -185,7 +189,7 @@ export function releasePhoto(photo: Photo | null) {
 }
 
 /** Our own credit line on every picture, kept apart from the Strava mention. */
-const SITE_CREDIT = "Created on ofolam.com";
+const SITE_CREDIT = "CREATED ON OFOLAM.COM";
 
 const DISPLAY = FONTS.display;
 const BODY = FONTS.sans;
@@ -396,6 +400,7 @@ export function renderCard(
     texts,
     order,
     brandBox: { x: 0, y: 0, w: 0, h: 0 },
+    creditBox: { x: 0, y: 0, w: 0, h: 0 },
   };
 
   // The route is fitted even when hidden: a map background follows its box.
@@ -535,7 +540,7 @@ export function renderCard(
     // Opposite side: our credit (same size as the logo's wordmark), then the map attribution
     // stacked above/below it when the map is shown
     const credits: { text: string; font: string }[] = [
-      { text: SITE_CREDIT, font: `500 26px ${BODY}` },
+      { text: SITE_CREDIT, font: `500 32px ${BODY}` },
       ...(isMap ? [{ text: MAP_ATTRIBUTION, font: `400 20px ${BODY}` }] : []),
     ];
     credits.forEach(({ text, font }, i) => {
@@ -543,7 +548,13 @@ export function renderCard(
       const tw = ctx.measureText(text).width;
       // Stack away from the edge: upwards at the bottom, downwards at the top
       const y = topSide ? by + 30 * i : by - 30 * i;
-      ctx.fillText(text, right ? P : w - P - tw, y);
+      const x = right ? P : w - P - tw;
+      // Site credit and map attribution share the credit color (full opacity when custom)
+      ctx.fillStyle = opts.creditColor ?? bg.text;
+      ctx.globalAlpha = opts.creditColor ? 1 : 0.6;
+      ctx.fillText(text, x, y);
+      // Only the site credit is selectable on the preview
+      if (i === 0) result.creditBox = toBox(x - 12, y - 36, tw + 24, 48);
     });
     ctx.globalAlpha = 1;
   });

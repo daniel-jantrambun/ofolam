@@ -6,17 +6,35 @@ import { ThemeSwitcher } from "../theme";
  * Theme + language switchers behind a burger button that opens a small popover.
  * Closes on outside click, Escape, or after picking an option.
  */
+export type MenuAction = { label: string; onClick: () => void; disabled?: boolean };
+
 export default function SettingsMenu({
   className = "",
   onRefresh,
+  actions = [],
 }: {
   className?: string;
   /** When given, a "Refresh" entry reloads the current data from Strava, bypassing caches. */
   onRefresh?: () => Promise<void> | void;
+  /** Page-specific entries shown at the top of the menu (e.g. back, copy, download). */
+  actions?: MenuAction[];
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // Opens upwards when there is not enough room below the button (e.g. mobile editor toolbar)
+  const [openUp, setOpenUp] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const PANEL_ESTIMATE_PX = 260;
+  const toggle = () => {
+    if (!open) {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      setOpenUp(
+        !!rect && window.innerHeight - rect.bottom < PANEL_ESTIMATE_PX && rect.top > PANEL_ESTIMATE_PX,
+      );
+    }
+    setOpen((o) => !o);
+  };
   const rootRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
 
@@ -38,7 +56,8 @@ export default function SettingsMenu({
     <div ref={rootRef} className={`relative ${className}`}>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        ref={buttonRef}
+        onClick={toggle}
         aria-expanded={open}
         aria-controls={panelId}
         aria-label={t.settings.label}
@@ -58,8 +77,29 @@ export default function SettingsMenu({
         </svg>
       </button>
       {open && (
-        <div id={panelId} className="card absolute right-0 top-full z-20 mt-2 w-max space-y-3 p-3">
+        <div
+          id={panelId}
+          className={`card absolute right-0 z-20 w-max space-y-3 p-3 ${openUp ? "bottom-full mb-2" : "top-full mt-2"}`}
+        >
           {/* Any choice closes the panel */}
+          {actions.length > 0 && (
+            <div className="flex flex-col gap-1">
+              {actions.map((a) => (
+                <button
+                  type="button"
+                  key={a.label}
+                  disabled={a.disabled}
+                  onClick={() => {
+                    setOpen(false);
+                    a.onClick();
+                  }}
+                  className="btn btn-ghost btn-sm justify-start"
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          )}
           {onRefresh && (
             <button
               type="button"
