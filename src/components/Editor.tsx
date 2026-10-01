@@ -28,10 +28,12 @@ import {
 } from "../lib/render";
 import { canShareFiles, canvasToBlob, copyImage, downloadBlob, shareImage } from "../lib/share";
 import type { MapStyle } from "../lib/tiles";
+import { useTheme } from "../theme";
 import CardOverlay, { type BoxChange, type OverlayItem } from "./CardOverlay";
 import ColorPicker from "./ColorPicker";
 import CornerPicker from "./CornerPicker";
 import PhotoCropper from "./PhotoCropper";
+import SettingsMenu from "./SettingsMenu";
 import TextStylePanel from "./TextStylePanel";
 
 type Props = { activityId: number; onBack: () => void; onSessionLost: () => void };
@@ -45,6 +47,9 @@ const backgrounds = (t: Dictionary): { id: Background; label: string }[] => [
 ];
 const mapStyles = (t: Dictionary): { id: MapStyle; label: string }[] => [
   { id: "light", label: t.editor.mapLight },
+  { id: "bright", label: t.editor.mapBright },
+  { id: "ground", label: t.editor.mapGround },
+  { id: "osm", label: t.editor.mapOSM },
   { id: "dark", label: t.editor.mapDark },
 ];
 const formats = (t: Dictionary): { id: Format; label: string }[] => [
@@ -62,18 +67,21 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   const [activity, setActivity] = useState<Activity | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const { resolved } = useTheme();
   const [fontsReady, setFontsReady] = useState(false);
   const [opts, setOpts] = useState<CardOptions>({
-    format: "story",
-    background: "night",
+    format: "post" as Format,
+    background: resolved === "dark" ? "night" : "topo",
     routeColor: ROUTE_COLORS[0],
     stats: ["distance", "time", "pace"],
     showName: true,
     showMeta: true,
     showRoute: true,
+    routeTrim: 200,
     photo: null,
     photoCrop: DEFAULT_CROP,
-    mapStyle: "light",
+    mapStyle: "bright" as MapStyle,
+    mapOpacity: 1,
     bgTint: { topo: null, night: null },
     routeBox: null,
     texts: {},
@@ -87,7 +95,6 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   // Selected elements on the preview ("route", "brand" or text keys); the last one is primary.
   const [selection, setSelection] = useState<string[]>([]);
   const selected: string | null = selection.length === 1 ? selection[0] : null;
-  const setSelected = (key: string | null) => setSelection(key ? [key] : []);
   const [tab, setTab] = useState<Tab>("layout");
   // Bumped when a map tile arrives, to redraw the card with it
   const [tileTick, setTileTick] = useState(0);
@@ -420,6 +427,9 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
               <path d="M15 14l5-5-5-5 M20 9H10a6 6 0 000 12h3" />
             </svg>
           </button>
+          <div className="flex justify-end">
+            <SettingsMenu />
+          </div>
         </div>
       </div>
 
@@ -491,6 +501,24 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                       value={opts.mapStyle}
                       onChange={(v) => set("mapStyle", v)}
                     />
+                    <div>
+                      <div className="flex items-center justify-between text-sm">
+                        <label htmlFor="map-opacity" className="text-muted">
+                          {t.editor.mapOpacity}
+                        </label>
+                        <span className="text-muted">{Math.round(opts.mapOpacity * 100)}%</span>
+                      </div>
+                      <input
+                        id="map-opacity"
+                        type="range"
+                        min={0.2}
+                        max={1}
+                        step={0.05}
+                        value={opts.mapOpacity}
+                        onChange={(e) => set("mapOpacity", Number.parseFloat(e.target.value))}
+                        className="range w-full"
+                      />
+                    </div>
                     <p className="text-sm text-muted">
                       {activity?.polyline ? t.editor.mapHint : t.editor.mapNoRoute}
                     </p>
@@ -642,9 +670,6 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                       />
                     </div>
                   )}
-                  <button type="button" onClick={() => setSelection([])} className="btn btn-outline mt-3">
-                    {t.editor.routeDone}
-                  </button>
                 </Field>
               )}
 
@@ -659,7 +684,6 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                   <TextStylePanel
                     value={opts.texts[selectedText] ?? DEFAULT_TEXT_STYLE}
                     onChange={(style) => set("texts", { ...opts.texts, [selectedText]: style })}
-                    onDone={() => setSelected(null)}
                   />
                 </Field>
               )}
@@ -673,9 +697,6 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                     value={opts.brandColor}
                     onChange={(v: BrandColor) => set("brandColor", v)}
                   />
-                  <button type="button" onClick={() => setSelected(null)} className="btn btn-outline mt-3">
-                    {t.editor.routeDone}
-                  </button>
                 </Field>
               )}
 
@@ -688,6 +709,25 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                     onMove={(d) => moveLayer("route", d)}
                   />
                   <CenterButtons onCenter={(axis) => centerLayer("route", axis)} />
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <label htmlFor="route-trim" className="text-muted">
+                        {t.editor.routeTrim}
+                      </label>
+                      <span className="text-muted">{opts.routeTrim} m</span>
+                    </div>
+                    <input
+                      id="route-trim"
+                      type="range"
+                      min={0}
+                      max={1000}
+                      step={50}
+                      value={opts.routeTrim}
+                      onChange={(e) => set("routeTrim", Number.parseInt(e.target.value, 10))}
+                      className="range w-full"
+                    />
+                    <p className="mt-1 text-xs text-muted">{t.editor.routeTrimHint}</p>
+                  </div>
                   <p className="mb-2 text-sm text-muted">{t.editor.routeColor}</p>
                   <div className="mb-4">
                     <ColorPicker value={opts.routeColor} onChange={(c) => c && set("routeColor", c)} />
@@ -718,9 +758,6 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                       </button>
                     )}
                   </div>
-                  <button type="button" onClick={() => setSelected(null)} className="btn btn-outline mt-3">
-                    {t.editor.routeDone}
-                  </button>
                 </Field>
               )}
             </>

@@ -11,7 +11,6 @@ import ColorPicker from "./ColorPicker";
 type Props = {
   value: TextStyle;
   onChange: (style: TextStyle) => void;
-  onDone: () => void;
 };
 
 const FONT_KEYS: FontKey[] = ["display", "sans", "serif", "mono"];
@@ -23,7 +22,7 @@ const FONT_PREVIEW: Record<FontKey, string> = {
 };
 
 /** Font, color, weight and position controls for one text block. */
-export default function TextStylePanel({ value, onChange, onDone }: Props) {
+export default function TextStylePanel({ value, onChange }: Props) {
   const { t } = useI18n();
   const set = <K extends keyof TextStyle>(k: K, v: TextStyle[K]) => onChange({ ...value, [k]: v });
 
@@ -96,10 +95,6 @@ export default function TextStylePanel({ value, onChange, onDone }: Props) {
           </button>
         )}
       </div>
-
-      <button type="button" onClick={onDone} className="btn btn-secondary">
-        {t.editor.routeDone}
-      </button>
     </div>
   );
 }

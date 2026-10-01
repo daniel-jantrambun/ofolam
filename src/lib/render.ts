@@ -11,7 +11,7 @@ import {
   formatPaceOrSpeed,
   sportLabel,
 } from "./format";
-import { decodePolyline, fitToBoxWithTransform } from "./polyline";
+import { decodePolyline, fitToBoxWithTransform, trimRoute } from "./polyline";
 import { drawMap, MAP_ATTRIBUTION, type MapStyle } from "./tiles";
 
 export type Format = "story" | "post" | "square" | "landscape";
@@ -95,12 +95,16 @@ export type CardOptions = {
   showName: boolean;
   showMeta: boolean;
   showRoute: boolean;
+  /** Meters hidden at the start and at the end of the route (privacy). 0 = full route. */
+  routeTrim: number;
   /** Background photo, used when `background === "photo"`. */
   photo: Photo | null;
   /** How the photo is framed: focal point + zoom. */
   photoCrop: Crop;
   /** Basemap style, used when `background === "map"`. The map follows the route's box. */
   mapStyle: MapStyle;
+  /** Map intensity, 0..1: the tiles are veiled with the background color by (1 - intensity). */
+  mapOpacity: number;
   /** Custom fill for the "topo" and "night" backgrounds; null = default tint. */
   bgTint: { topo: string | null; night: string | null };
   /** Where the route is drawn, as fractions of the card. `null` = automatic layout. */
@@ -127,6 +131,9 @@ const BACKGROUNDS: Record<Background, { fill: string | null; text: string }> = {
 };
 const MAP_TEXT: Record<MapStyle, { fill: string; text: string }> = {
   light: { fill: "#E9EDEA", text: palette.ink },
+  bright: { fill: "#F7F8F8", text: palette.ink },
+  ground: { fill: "#E9EDEA", text: palette.ink },
+  osm: { fill: "#E9EDEA", text: palette.ink },
   dark: { fill: "#0B0F14", text: palette.white },
 };
 
@@ -399,7 +406,7 @@ export function renderCard(
     // the box minus that padding, so reading the box back as `routeBox` redraws the route
     // exactly where it is.
     const pad = lineWidth * 1.3;
-    const fit = fitToBoxWithTransform(decodePolyline(a.polyline), {
+    const fit = fitToBoxWithTransform(trimRoute(decodePolyline(a.polyline), opts.routeTrim), {
       x: routeBox.x * w + pad,
       y: routeBox.y * h + pad,
       w: Math.max(1, routeBox.w * w - 2 * pad),
@@ -478,6 +485,15 @@ export function renderCard(
     ctx.fillStyle = bg.fill!;
     ctx.fillRect(0, 0, w, h);
     result.complete = drawMap(ctx, w, h, transform, opts.mapStyle, hooks.onTileLoaded);
+    // Soften the map so the route and texts stand out: a veil of the base color on top
+    const veil = 1 - Math.min(1, Math.max(0, opts.mapOpacity));
+    if (veil > 0) {
+      ctx.save();
+      ctx.globalAlpha = veil;
+      ctx.fillStyle = bg.fill!;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+    }
   } else if (bg.fill) {
     ctx.fillStyle = bg.fill;
     ctx.fillRect(0, 0, w, h);
