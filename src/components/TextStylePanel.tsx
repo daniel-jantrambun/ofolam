@@ -29,31 +29,6 @@ export default function TextStylePanel({ value, onChange }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <p className="field-label">{t.editor.font}</p>
-        <div className="flex flex-wrap gap-2">
-          {FONT_KEYS.map((f) => {
-            const on = value.font === f;
-            return (
-              <button
-                type="button"
-                key={f}
-                onClick={() => set("font", on ? null : f)}
-                aria-pressed={on}
-                className={`chip ${FONT_PREVIEW[f]}`}
-              >
-                {t.editor.fonts[f]}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div>
-        <p className="field-label">{t.editor.color}</p>
-        <ColorPicker value={value.color} onChange={(c) => set("color", c)} allowAuto />
-      </div>
-
-      <div>
         <div className="flex items-center justify-between text-sm">
           <label htmlFor="text-size" className="text-muted">
             {t.editor.textSize}
@@ -78,7 +53,29 @@ export default function TextStylePanel({ value, onChange }: Props) {
           className="range w-full"
         />
       </div>
-
+      <div>
+        <p className="field-label">{t.editor.color}</p>
+        <ColorPicker value={value.color} onChange={(c) => set("color", c)} allowAuto />
+      </div>
+      <div>
+        <p className="field-label">{t.editor.font}</p>
+        <div className="flex flex-wrap gap-2">
+          {FONT_KEYS.map((f) => {
+            const on = value.font === f;
+            return (
+              <button
+                type="button"
+                key={f}
+                onClick={() => set("font", on ? null : f)}
+                aria-pressed={on}
+                className={`chip ${FONT_PREVIEW[f]}`}
+              >
+                {t.editor.fonts[f]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <div className="flex flex-wrap items-center gap-4">
         {value.pos && (
           <button type="button" onClick={() => set("pos", null)} className="link text-sm">
