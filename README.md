@@ -70,6 +70,25 @@ settings:
 Worker secrets (`STRAVA_CLIENT_SECRET`, `TOKEN_KEY`) are not handled by the workflow: set them once
 with `pnpm wrangler secret put`, they persist across deployments.
 
+## Map tiles (Stadia Maps)
+
+The "Map" background fetches raster tiles from Stadia Maps. On `localhost` no account is needed. In
+production, Stadia authenticates requests by the domain they come from, so the deployed app must be
+registered once:
+
+1. Create a free account at https://stadiamaps.com (the free tier is for non-commercial use; it is
+   enough for a personal project and shows no watermark).
+2. In the dashboard, create a property and add your domain (e.g. `ofolam.com`, plus `www.ofolam.com`
+   if you serve it) under *Authentication → Domains*. Tiles requested from any other origin are
+   refused.
+3. Nothing to change in the app: the default tile URLs in `src/lib/tiles.ts` carry no key. If you
+   prefer key-based auth (or another provider), set `VITE_TILES_LIGHT`, `VITE_TILES_DARK` and
+   `VITE_TILES_ATTRIBUTION` in `.env` and in the GitHub variables; see `.env.example` for a MapTiler
+   example.
+
+If the map stays blank in production while it works locally, the domain is almost certainly missing
+from the Stadia property.
+
 ## D1 migrations
 
 The schema lives in `migrations/*.sql` and is applied by Wrangler's migration system
@@ -115,8 +134,7 @@ and undo/redo (`src/components/Editor.tsx`).
 
 **Map background.** The "Map" background draws raster tiles in the exact projection of the route
 (`src/lib/tiles.ts`): the map follows the route's box. Default provider: Stadia Maps (OpenStreetMap
-data, free for non-commercial use, no key on localhost, register your domain on stadiamaps.com in
-production). Another provider can be set through `VITE_TILES_*` in `.env` (see `.env.example`, with a
+data, free for non-commercial use; see "Map tiles" above for the required domain registration). Another provider can be set through `VITE_TILES_*` in `.env` (see `.env.example`, with a
 MapTiler example). The provider must send CORS headers: tiles are loaded with `crossOrigin` so the
 canvas stays exportable. Showing a map sends the route's area to the tile server.
 

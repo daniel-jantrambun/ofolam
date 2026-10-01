@@ -8,10 +8,13 @@ import type { MercatorTransform } from "./polyline";
  * non-commercial use, no key on localhost, domain registration in production.
  * Whatever the provider, it must send CORS headers so the canvas stays exportable.
  */
-export type MapStyle = "light" | "dark";
+export type MapStyle = "light" | "bright" | "dark" | "ground" | "osm";
 
 const DEFAULT_TILES: Record<MapStyle, string> = {
   light: "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}@2x.png",
+  bright: "https://tiles.stadiamaps.com/tiles/alidade_bright/{z}/{x}/{y}@2x.png",
+  ground: "https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}@2x.png",
+  osm: "https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}@2x.png",
   dark: "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}@2x.png",
 };
 const DEFAULT_ATTRIBUTION = "© Stadia Maps © OpenMapTiles © OpenStreetMap contributors";
@@ -19,6 +22,9 @@ const DEFAULT_ATTRIBUTION = "© Stadia Maps © OpenMapTiles © OpenStreetMap con
 const env = import.meta.env as Record<string, string | undefined>;
 const TILES: Record<MapStyle, string> = {
   light: env.VITE_TILES_LIGHT || DEFAULT_TILES.light,
+  bright: env.VITE_TILES_BRIGHT || DEFAULT_TILES.bright,
+  ground: env.VITE_TILES_GROUND || DEFAULT_TILES.ground,
+  osm: env.VITE_TILES_OSM || DEFAULT_TILES.osm,
   dark: env.VITE_TILES_DARK || DEFAULT_TILES.dark,
 };
 export const MAP_ATTRIBUTION = env.VITE_TILES_ATTRIBUTION || DEFAULT_ATTRIBUTION;
