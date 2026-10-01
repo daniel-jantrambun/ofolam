@@ -102,9 +102,18 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   // Bumped when a map tile arrives, to redraw the card with it
   const [tileTick, setTileTick] = useState(0);
   // Selecting an element on the preview opens its settings
+  // Selecting an element opens the Style tab; tapping empty card space returns to the tab
+  // the user was on before (or to the first tab when they were already on Style).
+  const tabBeforeSelect = useRef<Tab | null>(null);
   const onSelectLayer = (keys: string[]) => {
     setSelection(keys);
-    if (keys.length) setTab("style");
+    if (keys.length) {
+      if (tab !== "style") tabBeforeSelect.current = tab;
+      setTab("style");
+    } else {
+      setTab(tabBeforeSelect.current ?? "layout");
+      tabBeforeSelect.current = null;
+    }
   };
   // Crop settings are shown after picking a photo, until the user saves them
   const [photoEditing, setPhotoEditing] = useState(false);
@@ -555,6 +564,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                         (opts.background === "topo" ? LIGHT_TINTS[0] : NIGHT_TINTS[0])
                       }
                       onChange={(c) => set("bgTint", { ...opts.bgTint, [opts.background]: c })}
+                      size="sm"
                     />
                   </div>
                 )}
@@ -688,13 +698,6 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                   </Pill>
                 ))}
               </div>
-              {activity?.polyline && opts.showRoute && (
-                <div className="mt-5 space-y-3 border-t border-border pt-4">
-                  <p className="field-label">{t.editor.elementRoute}</p>
-                  <ColorPicker value={opts.routeColor} onChange={(c) => c && set("routeColor", c)} />
-                  <RouteTrim value={opts.routeTrim} onChange={(v) => set("routeTrim", v)} />
-                </div>
-              )}
             </Field>
           )}
 
@@ -709,14 +712,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
               {selection.length > 1 && (
                 <Field label={t.editor.multiSelected(selection.length)}>
                   <AlignButtons onAlign={alignSelection} />
-                  <div className="mt-4">
-                    <p className="field-label">{t.editor.color}</p>
-                    <ColorPicker
-                      value={commonColor}
-                      onChange={setSelectionColor}
-                      allowAuto={selectedTexts.length > 0}
-                    />
-                  </div>
+
                   {selectedTexts.length > 0 && (
                     <div className="mt-4">
                       <div className="flex items-center justify-between text-sm">
@@ -744,6 +740,15 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                       />
                     </div>
                   )}
+                  <div className="mt-4">
+                    <p className="field-label">{t.editor.color}</p>
+                    <ColorPicker
+                      size="sm"
+                      value={commonColor}
+                      onChange={setSelectionColor}
+                      allowAuto={selectedTexts.length > 0}
+                    />
+                  </div>
                 </Field>
               )}
 
@@ -766,7 +771,12 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
 
               {selected === "credit" && (
                 <Field label={t.editor.creditColor}>
-                  <ColorPicker value={opts.creditColor} onChange={(c) => set("creditColor", c)} allowAuto />
+                  <ColorPicker
+                    value={opts.creditColor}
+                    onChange={(c) => set("creditColor", c)}
+                    allowAuto
+                    size="sm"
+                  />
                   <p className="mt-2 text-xs text-muted">{t.editor.creditHint}</p>
                 </Field>
               )}
@@ -784,22 +794,8 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
               )}
 
               {selected === "route" && drawnBox && (
-                <Field label={t.editor.routeLayout}>
-                  <p className="mb-2 text-sm text-muted">{t.editor.routeHint}</p>
-                  <LayerButtons
-                    up={canMoveUp("route")}
-                    down={canMoveDown("route")}
-                    onMove={(d) => moveLayer("route", d)}
-                  />
-                  <CenterButtons onCenter={(axis) => centerLayer("route", axis)} />
-                  <div className="mb-4">
-                    <RouteTrim value={opts.routeTrim} onChange={(v) => set("routeTrim", v)} />
-                  </div>
-                  <p className="mb-2 text-sm text-muted">{t.editor.routeColor}</p>
-                  <div className="mb-4">
-                    <ColorPicker value={opts.routeColor} onChange={(c) => c && set("routeColor", c)} />
-                  </div>
-                  <div className="flex items-center gap-3">
+                <Field label={t.editor.routeLayout} hint={t.editor.routeHint}>
+                  <div className="flex items-center gap-3 mb-4">
                     <label htmlFor="route-size" className="text-sm text-muted">
                       {t.editor.routeSize}
                     </label>
@@ -825,6 +821,19 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                       </button>
                     )}
                   </div>
+                  <p className="mb-4 text-sm text-muted">{t.editor.routeColor}</p>
+                  <div className="mb-4">
+                    <ColorPicker value={opts.routeColor} onChange={(c) => c && set("routeColor", c)} />
+                  </div>
+                  <div className="mb-2">
+                    <RouteTrim value={opts.routeTrim} onChange={(v) => set("routeTrim", v)} />
+                  </div>
+                  <LayerButtons
+                    up={canMoveUp("route")}
+                    down={canMoveDown("route")}
+                    onMove={(d) => moveLayer("route", d)}
+                  />
+                  <CenterButtons onCenter={(axis) => centerLayer("route", axis)} />
                 </Field>
               )}
             </>
@@ -1133,12 +1142,30 @@ function CenterButtons({ onCenter }: { onCenter: (axis: "x" | "y") => void }) {
 function RouteTrim({ value, onChange }: { value: number; onChange: (meters: number) => void }) {
   const { t } = useI18n();
   const id = useId();
+  const [showHint, setShowHint] = useState(false);
+  const hintId = useId();
   return (
     <div>
+      <div className="mb-2 flex items-center gap-2">
+        <p className="field-label !mb-0">{t.editor.routeTrim}</p>
+        <button
+          type="button"
+          onClick={() => setShowHint((v) => !v)}
+          aria-expanded={showHint}
+          aria-controls={hintId}
+          aria-label={t.editor.routeTrimHint}
+          title={t.editor.routeTrimHint}
+          className={`flex h-5 w-5 items-center justify-center rounded-full border text-[11px] font-semibold leading-none transition-colors ${showHint ? "border-secondary bg-secondary text-secondary-foreground" : "border-border text-muted hover:border-muted hover:text-foreground"}`}
+        >
+          ?
+        </button>
+      </div>
+      {showHint && (
+        <p id={hintId} className="mb-3 rounded-lg bg-surface-2 px-3 py-2 text-sm text-muted">
+          {t.editor.routeTrimHint}
+        </p>
+      )}
       <div className="flex items-center justify-between text-sm">
-        <label htmlFor={id} className="text-muted">
-          {t.editor.routeTrim}
-        </label>
         <span className="text-muted">{value} m</span>
       </div>
       <input
@@ -1151,7 +1178,6 @@ function RouteTrim({ value, onChange }: { value: number; onChange: (meters: numb
         onChange={(e) => onChange(Number.parseInt(e.target.value, 10))}
         className="range w-full"
       />
-      <p className="mt-1 text-xs text-muted">{t.editor.routeTrimHint}</p>
     </div>
   );
 }
@@ -1165,10 +1191,33 @@ function Pill({ on, onClick, children }: { on: boolean; onClick: () => void; chi
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/** Labelled block; `hint` adds a "?" next to the label that reveals a short explanation. */
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  const [showHint, setShowHint] = useState(false);
+  const hintId = useId();
   return (
     <div>
-      <p className="field-label">{label}</p>
+      <div className="mb-2 flex items-center gap-2">
+        <p className="field-label !mb-0">{label}</p>
+        {hint && (
+          <button
+            type="button"
+            onClick={() => setShowHint((v) => !v)}
+            aria-expanded={showHint}
+            aria-controls={hintId}
+            aria-label={hint}
+            title={hint}
+            className={`flex h-5 w-5 items-center justify-center rounded-full border text-[11px] font-semibold leading-none transition-colors ${showHint ? "border-secondary bg-secondary text-secondary-foreground" : "border-border text-muted hover:border-muted hover:text-foreground"}`}
+          >
+            ?
+          </button>
+        )}
+      </div>
+      {hint && showHint && (
+        <p id={hintId} className="mb-3 rounded-lg bg-surface-2 px-3 py-2 text-sm text-muted">
+          {hint}
+        </p>
+      )}
       {children}
     </div>
   );

@@ -71,7 +71,17 @@ export default function CardOverlay({ label, items, selected, onSelect, onChange
     return { center, dist };
   };
 
-  const itemAt = (p: { x: number; y: number }) => [...items].reverse().find((i) => inside(p, i.box)) ?? null;
+  /** Minimum tap target, in CSS px: small text blocks get an invisible margin around them. */
+  const MIN_HIT_PX = 44;
+  const hitBox = (b: Box): Box => {
+    const rect = layerRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return b;
+    const padX = Math.max(0, (MIN_HIT_PX / rect.width - b.w) / 2);
+    const padY = Math.max(0, (MIN_HIT_PX / rect.height - b.h) / 2);
+    return { x: b.x - padX, y: b.y - padY, w: b.w + 2 * padX, h: b.h + 2 * padY };
+  };
+  const itemAt = (p: { x: number; y: number }) =>
+    [...items].reverse().find((i) => inside(p, hitBox(i.box))) ?? null;
   const groupable = (key: string) => !items.find((i) => i.key === key)?.fixed;
 
   const startGesture = (keys: string[]) => {

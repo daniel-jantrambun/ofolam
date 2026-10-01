@@ -266,6 +266,10 @@ body {
       transform 0.08s ease,
       box-shadow 0.15s ease;
   }
+  .swatch-sm {
+    height: 2rem;
+    width: 2rem;
+  }
   .swatch:hover {
     transform: scale(1.06);
   }

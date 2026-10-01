@@ -27,8 +27,8 @@ export default function TextStylePanel({ value, onChange }: Props) {
   const set = <K extends keyof TextStyle>(k: K, v: TextStyle[K]) => onChange({ ...value, [k]: v });
 
   return (
-    <div className="space-y-4">
-      <div>
+    <div>
+      <div className="mb-4">
         <div className="flex items-center justify-between text-sm">
           <label htmlFor="text-size" className="text-muted">
             {t.editor.textSize}
@@ -55,7 +55,7 @@ export default function TextStylePanel({ value, onChange }: Props) {
       </div>
       <div>
         <p className="field-label">{t.editor.color}</p>
-        <ColorPicker value={value.color} onChange={(c) => set("color", c)} allowAuto />
+        <ColorPicker value={value.color} onChange={(c) => set("color", c)} allowAuto size="sm" />
       </div>
       <div>
         <p className="field-label">{t.editor.font}</p>
