@@ -9,10 +9,18 @@ type Props = {
   allowAuto?: boolean;
   /** Swatches to offer; defaults to the route palette. */
   presets?: readonly string[];
+  /** Size modifier for the swatches, e.g., "swatch-sm". */
+  size?: "sm";
 };
 
 /** Preset swatches plus the browser's native color picker for any other color. */
-export default function ColorPicker({ value, onChange, allowAuto = false, presets = ROUTE_COLORS }: Props) {
+export default function ColorPicker({
+  value,
+  onChange,
+  allowAuto = false,
+  presets = ROUTE_COLORS,
+  size,
+}: Props) {
   const { t } = useI18n();
   const isPreset = value !== null && presets.includes(value);
   const isCustom = value !== null && !isPreset;
@@ -24,7 +32,7 @@ export default function ColorPicker({ value, onChange, allowAuto = false, preset
           type="button"
           onClick={() => onChange(null)}
           aria-pressed={value === null}
-          className="chip text-sm"
+          className="chip text-xs"
         >
           {t.editor.colorAuto}
         </button>
@@ -36,7 +44,7 @@ export default function ColorPicker({ value, onChange, allowAuto = false, preset
           onClick={() => onChange(c)}
           aria-label={t.editor.colorLabel(c)}
           aria-pressed={value === c}
-          className="swatch"
+          className={`swatch ${size === "sm" ? "swatch-sm" : ""}`}
           style={{ background: c }}
         />
       ))}
@@ -44,7 +52,7 @@ export default function ColorPicker({ value, onChange, allowAuto = false, preset
       <label
         aria-label={t.editor.colorCustom}
         title={t.editor.colorCustom}
-        className={`swatch relative flex cursor-pointer items-center justify-center ${isCustom ? "swatch-on" : ""}`}
+        className={`swatch ${size === "sm" ? "swatch-sm" : ""} relative flex cursor-pointer items-center justify-center ${isCustom ? "swatch-on" : ""}`}
         style={{
           background: isCustom
             ? value

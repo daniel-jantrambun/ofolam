@@ -189,7 +189,9 @@ export function releasePhoto(photo: Photo | null) {
 }
 
 /** Our own credit line on every picture, kept apart from the Strava mention. */
-const SITE_CREDIT = "CREATED ON OFOLAM.COM";
+/** Drawn as two runs: a regular prefix and a bold, slightly larger site name. */
+const SITE_CREDIT_PREFIX = "CREATED ON ";
+const SITE_CREDIT_NAME = "OFOLAM.COM";
 
 const DISPLAY = FONTS.display;
 const BODY = FONTS.sans;
@@ -539,23 +541,34 @@ export function renderCard(
 
     // Opposite side: our credit (same size as the logo's wordmark), then the map attribution
     // stacked above/below it when the map is shown
-    const credits: { text: string; font: string }[] = [
-      { text: SITE_CREDIT, font: `500 32px ${BODY}` },
-      ...(isMap ? [{ text: MAP_ATTRIBUTION, font: `400 20px ${BODY}` }] : []),
-    ];
-    credits.forEach(({ text, font }, i) => {
-      ctx.font = font;
-      const tw = ctx.measureText(text).width;
-      // Stack away from the edge: upwards at the bottom, downwards at the top
-      const y = topSide ? by + 30 * i : by - 30 * i;
-      const x = right ? P : w - P - tw;
-      // Site credit and map attribution share the credit color (full opacity when custom)
-      ctx.fillStyle = opts.creditColor ?? bg.text;
-      ctx.globalAlpha = opts.creditColor ? 1 : 0.6;
-      ctx.fillText(text, x, y);
-      // Only the site credit is selectable on the preview
-      if (i === 0) result.creditBox = toBox(x - 12, y - 36, tw + 24, 48);
-    });
+    // Site credit: "CREATED ON " regular + "OFOLAM.COM" bold and a little larger, full
+    // opacity so it reads clearly black or white in "auto" mode
+    // Contrast comes from three differences at once: family (sans vs condensed display),
+    // weight (regular vs bold) and size
+    const prefixFont = `400 26px ${BODY}`;
+    const nameFont = `700 40px ${DISPLAY}`;
+    ctx.font = prefixFont;
+    const prefixW = ctx.measureText(SITE_CREDIT_PREFIX).width;
+    ctx.font = nameFont;
+    const nameW = ctx.measureText(SITE_CREDIT_NAME).width;
+    const creditW = prefixW + nameW;
+    const creditX = right ? P : w - P - creditW;
+    ctx.fillStyle = opts.creditColor ?? bg.text;
+    ctx.font = prefixFont;
+    ctx.globalAlpha = 0.75;
+    ctx.fillText(SITE_CREDIT_PREFIX, creditX, by);
+    ctx.font = nameFont;
+    ctx.globalAlpha = 1;
+    ctx.fillText(SITE_CREDIT_NAME, creditX + prefixW, by);
+    result.creditBox = toBox(creditX - 12, by - 40, creditW + 24, 52);
+
+    if (isMap) {
+      // Map attribution stacked away from the edge, same color, softer
+      ctx.font = `400 20px ${BODY}`;
+      const aw = ctx.measureText(MAP_ATTRIBUTION).width;
+      ctx.globalAlpha = opts.creditColor ? 0.85 : 0.6;
+      ctx.fillText(MAP_ATTRIBUTION, right ? P : w - P - aw, topSide ? by + 30 : by - 34);
+    }
     ctx.globalAlpha = 1;
   });
 
