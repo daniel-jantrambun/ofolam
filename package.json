@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "hono": "^4.13.9",
+    "mediabunny": "^1.61.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

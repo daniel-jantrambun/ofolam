@@ -4,19 +4,19 @@ export function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   );
 }
 
-export function canShareFiles(): boolean {
+export function canShareFiles(type = "image/png"): boolean {
   if (!navigator.canShare) return false;
-  const probe = new File([new Blob()], "probe.png", { type: "image/png" });
+  const probe = new File([new Blob()], `probe.${type.split("/")[1]}`, { type });
   return navigator.canShare({ files: [probe] });
 }
 
 /**
- * Opens the native share sheet (Instagram, WhatsApp, …).
+ * Opens the native share sheet (Instagram, WhatsApp, …) with a picture or a video.
  * Must be called directly from the click handler, with a blob already prepared:
  * Safari refuses to share if a promise is awaited first.
  */
 export async function shareImage(blob: Blob, filename: string): Promise<"shared" | "cancelled"> {
-  const file = new File([blob], filename, { type: "image/png" });
+  const file = new File([blob], filename, { type: blob.type || "image/png" });
   try {
     await navigator.share({ files: [file] });
     return "shared";
