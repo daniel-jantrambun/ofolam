@@ -247,6 +247,16 @@ body {
     box-shadow: var(--shadow-card);
   }
 
+  /* Wrapping: the editor sets --seg-cols so every row holds the same number of options */
+  .seg[data-cols] {
+    display: flex;
+    width: 100%;
+  }
+  .seg[data-cols] .seg-item {
+    /* 1px of slack: rounding must never push the last column to the next row */
+    flex-basis: calc((100% - (var(--seg-cols) - 1) * 0.125rem) / var(--seg-cols) - 1px);
+  }
+
   .field-label {
     display: block;
     margin-bottom: 0.5rem;

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n";
 import type { Dictionary } from "../i18n/en";
 import { type Activity, type ApiError, getActivity } from "../lib/api";
@@ -889,13 +889,6 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                     zoomable={false}
                     hint={t.editor.videoCropHint}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setVideoEditing(false)}
-                    className="btn btn-secondary mt-3"
-                  >
-                    {t.editor.cropSave}
-                  </button>
                 </Field>
               )}
 
@@ -907,13 +900,6 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                     value={opts.photoCrop}
                     onChange={(photoCrop) => set("photoCrop", photoCrop)}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setPhotoEditing(false)}
-                    className="btn btn-secondary mt-3"
-                  >
-                    {t.editor.cropSave}
-                  </button>
                 </Field>
               )}
               <Field label={t.editor.format}>
@@ -1529,8 +1515,16 @@ function Segmented<T extends string>({
   value: T;
   onChange: (v: T) => void;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const cols = useBalancedColumns(ref);
   return (
-    <div role="radiogroup" className="seg">
+    <div
+      ref={ref}
+      role="radiogroup"
+      className="seg"
+      data-cols={cols ?? undefined}
+      style={cols ? ({ "--seg-cols": cols } as React.CSSProperties) : undefined}
+    >
       {options.map((o) => (
         <button
           type="button"
@@ -1540,9 +1534,57 @@ function Segmented<T extends string>({
           onClick={() => onChange(o.id)}
           className="seg-item"
         >
-          {o.label}
+          <span>{o.label}</span>
         </button>
       ))}
     </div>
   );
+}
+
+/**
+ * Column count that spreads a wrapping segmented control evenly over its rows
+ * (6 options on 2 rows: 3 + 3, not 5 + 1). Null while everything fits on one row.
+ * Widths come from the labels' own spans, so the result does not depend on the
+ * layout it produces (no resize loop).
+ */
+function useBalancedColumns(ref: React.RefObject<HTMLDivElement | null>): number | null {
+  const [cols, setCols] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const seg = ref.current;
+    const parent = seg?.parentElement;
+    if (!seg || !parent) return;
+    const measure = () => {
+      const items = Array.from(seg.children) as HTMLElement[];
+      if (items.length < 2) return setCols(null);
+      const px = (v: string) => Number.parseFloat(v) || 0;
+      const segStyle = getComputedStyle(seg);
+      const segPad =
+        px(segStyle.paddingLeft) +
+        px(segStyle.paddingRight) +
+        px(segStyle.borderLeftWidth) +
+        px(segStyle.borderRightWidth);
+      const gap = px(segStyle.columnGap);
+      const widths = items.map((item) => {
+        const style = getComputedStyle(item);
+        const label = item.firstElementChild?.getBoundingClientRect().width ?? 0;
+        return Math.ceil(label + px(style.paddingLeft) + px(style.paddingRight));
+      });
+      const parentStyle = getComputedStyle(parent);
+      const avail = parent.clientWidth - px(parentStyle.paddingLeft) - px(parentStyle.paddingRight) - segPad;
+      const oneRow = widths.reduce((a, b) => a + b, 0) + gap * (items.length - 1);
+      if (oneRow <= avail) return setCols(null);
+      // As many equal columns as the widest option allows, then rebalanced over the rows needed
+      const perRow = Math.max(1, Math.floor((avail + gap) / (Math.max(...widths) + gap)));
+      const rows = Math.ceil(items.length / perRow);
+      setCols(Math.ceil(items.length / rows));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(parent);
+    // Labels change width when web fonts arrive or the language switches
+    for (const item of Array.from(seg.children))
+      if (item.firstElementChild) observer.observe(item.firstElementChild);
+    return () => observer.disconnect();
+  });
+  return cols;
 }
