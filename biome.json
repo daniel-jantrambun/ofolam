@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!dist", "!dev-dist", "!.wrangler", "!.harness", "!node_modules", "!public"]
+    "includes": ["**", "!dist", "!dev-dist", "!.wrangler", "!.harness", "!node_modules", "!public", "!design"]
   },
   "formatter": {
     "enabled": true,

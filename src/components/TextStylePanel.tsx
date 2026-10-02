@@ -53,9 +53,9 @@ export default function TextStylePanel({ value, onChange }: Props) {
           className="range w-full"
         />
       </div>
-      <div>
+      <div className="mb-4">
         <p className="field-label">{t.editor.color}</p>
-        <ColorPicker value={value.color} onChange={(c) => set("color", c)} allowAuto size="sm" />
+        <ColorPicker value={value.color} onChange={(c) => set("color", c)} allowAuto />
       </div>
       <div>
         <p className="field-label">{t.editor.font}</p>

@@ -101,6 +101,8 @@ export const fr: Dictionary = {
     routeTrimHint: "Retire cette distance à chaque extrémité, par exemple pour ne pas révéler ton domicile.",
     routeSize: "Taille du tracé",
     routeAuto: "Position automatique",
+    titleText: "Texte",
+    titleReset: "Reprendre le nom Strava",
     textLayout: "Texte",
     textHint: "Touche un texte, le tracé ou la mention Strava sur l'aperçu pour l'ajuster.",
     font: "Police",

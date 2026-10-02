@@ -13,12 +13,14 @@ export const palette = {
   contour: "#C9D3C6",
   ink: "#17252B",
   inkSoft: "#4A5A60",
-  bib: "#2B50FF",
-  strava: "#FC4C02",
+  bib: "#2E4FE6",
   night: "#0F1C2E",
   white: "#FFFFFF",
-  ember: "#FF6B2C",
-  raspberry: "#E83F6F",
+  // Route / text colors, kept clearly apart from Strava's orange (used only in its official assets)
+  sunrise: "#F2A33A",
+  trail: "#22B573",
+  raspberry: "#E6397A",
+  glacier: "#22B8E6",
 } as const;
 
 export const colors = {
@@ -30,17 +32,19 @@ export const colors = {
   foreground: palette.ink,
   muted: palette.inkSoft,
   border: palette.contour,
-  accent: palette.strava,
+  accent: palette.sunrise,
   accentForeground: palette.white,
 } as const;
 
 /** Route colors offered in the editor. */
 export const ROUTE_COLORS = [
   colors.primary,
-  palette.ember,
+  palette.sunrise,
+  palette.trail,
+  palette.raspberry,
+  palette.glacier,
   palette.white,
   palette.ink,
-  palette.raspberry,
 ] as const;
 
 /** Fill presets for the "Light" and "Night" backgrounds; the first one is the default. */

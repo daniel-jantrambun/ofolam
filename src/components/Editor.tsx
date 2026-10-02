@@ -79,6 +79,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
     showMeta: true,
     showRoute: true,
     routeTrim: 200,
+    titleText: null,
     photo: null,
     photoCrop: DEFAULT_CROP as Crop,
     mapStyle: "bright" as MapStyle,
@@ -564,7 +565,6 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                         (opts.background === "topo" ? LIGHT_TINTS[0] : NIGHT_TINTS[0])
                       }
                       onChange={(c) => set("bgTint", { ...opts.bgTint, [opts.background]: c })}
-                      size="sm"
                     />
                   </div>
                 )}
@@ -743,7 +743,6 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                   <div className="mt-4">
                     <p className="field-label">{t.editor.color}</p>
                     <ColorPicker
-                      size="sm"
                       value={commonColor}
                       onChange={setSelectionColor}
                       allowAuto={selectedTexts.length > 0}
@@ -754,6 +753,35 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
 
               {selectedText && (
                 <Field label={`${t.editor.textLayout} · ${textLabel(selectedText)}`}>
+                  {selectedText === "title" && (
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between text-sm">
+                        <label htmlFor="title-text" className="text-muted">
+                          {t.editor.titleText}
+                        </label>
+                        <span className="text-muted">
+                          {(opts.titleText ?? activity?.name ?? "").length}/{TITLE_MAX}
+                        </span>
+                      </div>
+                      <input
+                        id="title-text"
+                        type="text"
+                        maxLength={TITLE_MAX}
+                        value={opts.titleText ?? activity?.name ?? ""}
+                        onChange={(e) => set("titleText", e.target.value.slice(0, TITLE_MAX))}
+                        className="mt-1 w-full rounded-xl border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-primary"
+                      />
+                      {opts.titleText !== null && (
+                        <button
+                          type="button"
+                          onClick={() => set("titleText", null)}
+                          className="link mt-1 text-sm"
+                        >
+                          {t.editor.titleReset}
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <TextStylePanel
                     value={opts.texts[selectedText] ?? DEFAULT_TEXT_STYLE}
                     onChange={(style) => set("texts", { ...opts.texts, [selectedText]: style })}
@@ -771,12 +799,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
 
               {selected === "credit" && (
                 <Field label={t.editor.creditColor}>
-                  <ColorPicker
-                    value={opts.creditColor}
-                    onChange={(c) => set("creditColor", c)}
-                    allowAuto
-                    size="sm"
-                  />
+                  <ColorPicker value={opts.creditColor} onChange={(c) => set("creditColor", c)} allowAuto />
                   <p className="mt-2 text-xs text-muted">{t.editor.creditHint}</p>
                 </Field>
               )}
@@ -952,6 +975,8 @@ const TABS: { id: Tab; icon: string }[] = [
   { id: "elements", icon: "M5 7h14 M5 12h14 M5 17h9" },
   { id: "style", icon: "M12 3l2.5 5.5L20 9l-4 4 1 6-5-2.7L7 19l1-6-4-4 5.5-.5z" },
 ];
+/** Maximum length of a custom activity name on the card. */
+const TITLE_MAX = 120;
 const SHARE_ICON = "M12 16V4 M8 8l4-4 4 4 M5 14v6h14v-6";
 
 /** Section switcher: a vertical rail on desktop, a bottom bar on mobile. */
