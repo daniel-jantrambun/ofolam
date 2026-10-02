@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n";
 import type { Dictionary } from "../i18n/en";
 import { type Activity, type ApiError, getActivity } from "../lib/api";
@@ -29,6 +29,15 @@ import {
 } from "../lib/render";
 import { canShareFiles, canvasToBlob, copyImage, downloadBlob, shareImage } from "../lib/share";
 import type { MapStyle } from "../lib/tiles";
+import {
+  canExportVideo,
+  defaultTrim,
+  exportVideo,
+  loadVideo,
+  releaseVideo,
+  type VideoClip,
+  type VideoTrim,
+} from "../lib/video";
 import { useTheme } from "../theme";
 import CardOverlay, { type BoxChange, type OverlayItem } from "./CardOverlay";
 import ColorPicker from "./ColorPicker";
@@ -36,15 +45,18 @@ import CornerPicker from "./CornerPicker";
 import PhotoCropper from "./PhotoCropper";
 import SettingsMenu, { type MenuAction } from "./SettingsMenu";
 import TextStylePanel from "./TextStylePanel";
+import VideoTrimmer from "./VideoTrimmer";
 
 type Props = { activityId: number; onBack: () => void; onSessionLost: () => void };
 
 const backgrounds = (t: Dictionary): { id: Background; label: string }[] => [
+  { id: "photo", label: t.editor.bgPhoto },
+  // Only offered where the browser can encode it (WebCodecs)
+  ...(canExportVideo() ? [{ id: "video" as const, label: t.editor.bgVideo }] : []),
+  { id: "map", label: t.editor.bgMap },
   { id: "transparent", label: t.editor.bgTransparent },
   { id: "night", label: t.editor.bgNight },
   { id: "topo", label: t.editor.bgTopo },
-  { id: "photo", label: t.editor.bgPhoto },
-  { id: "map", label: t.editor.bgMap },
 ];
 const mapStyles = (t: Dictionary): { id: MapStyle; label: string }[] => [
   { id: "light", label: t.editor.mapLight },
@@ -64,6 +76,11 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const videoFileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  // Preview playback: what the user asked for (play / pause button), and what the element is doing
+  const wantPlay = useRef(true);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
   const blobRef = useRef<Blob | null>(null);
   const [activity, setActivity] = useState<Activity | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
@@ -82,6 +99,10 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
     titleText: null,
     photo: null,
     photoCrop: DEFAULT_CROP as Crop,
+    video: null,
+    videoCrop: DEFAULT_CROP as Crop,
+    videoTrim: { start: 0, end: 0 },
+    videoMuted: false,
     mapStyle: "bright" as MapStyle,
     mapOpacity: 1,
     bgTint: { topo: null, night: null },
@@ -118,15 +139,21 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   };
   // Crop settings are shown after picking a photo, until the user saves them
   const [photoEditing, setPhotoEditing] = useState(false);
+  const [videoEditing, setVideoEditing] = useState(false);
+  // Video export: progress while encoding, then the MP4 ready to share (dropped on any edit)
+  const [exporting, setExporting] = useState<{ progress: number; abort: AbortController } | null>(null);
+  const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
 
   // The dictionary is part of the render options: the canvas redraws when the language changes
   useEffect(() => setOpts((o) => (o.t === t ? o : { ...o, t })), [t]);
 
   // Every photo loaded in this session stays usable (undo may bring it back); all are released on unmount
   const photos = useRef(new Set<Photo>());
+  const clips = useRef(new Set<VideoClip>());
   useEffect(
     () => () => {
       for (const ph of photos.current) releasePhoto(ph);
+      for (const clip of clips.current) releaseVideo(clip);
     },
     [],
   );
@@ -241,13 +268,25 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
     canvasToBlob(canvas).then((b) => (blobRef.current = b));
   }, [activity, opts, fontsReady, tileTick]);
 
+  // Any edit makes the exported video stale: drop it, and stop an export in progress
+  useEffect(() => {
+    void activity;
+    void opts;
+    setVideoBlob(null);
+    setExporting((e) => {
+      e?.abort.abort();
+      return null;
+    });
+  }, [activity, opts]);
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(t);
   }, [toast]);
 
-  const filename = `ofolam-${activityId}.png`;
+  const isVideo = opts.background === "video" && !!opts.video;
+  const filename = `ofolam-${activityId}.${isVideo ? "mp4" : "png"}`;
   const set = <K extends keyof CardOptions>(k: K, v: CardOptions[K]) => setOpts((o) => ({ ...o, [k]: v }));
   const toggleStat = (s: StatKey) =>
     set("stats", opts.stats.includes(s) ? opts.stats.filter((x) => x !== s) : [...opts.stats, s].slice(0, 4));
@@ -284,7 +323,99 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   };
 
   const onDownload = async () => {
+    if (isVideo) return videoBlob && downloadBlob(videoBlob, filename);
     downloadBlob(blobRef.current ?? (await canvasToBlob(canvasRef.current!)), filename);
+  };
+
+  const onPickVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allows picking the same file again
+    if (!file) return;
+    try {
+      const video = await loadVideo(file);
+      clips.current.add(video);
+      setOpts((o) => ({
+        ...o,
+        video,
+        videoCrop: DEFAULT_CROP,
+        videoTrim: defaultTrim(video.duration),
+        background: "video",
+      }));
+      setVideoEditing(true);
+      wantPlay.current = true;
+    } catch {
+      setToast(t.editor.videoUnreadable);
+    }
+  };
+
+  const onRemoveVideo = () => {
+    setOpts((o) => ({ ...o, video: null, background: "night" }));
+    setVideoEditing(false);
+  };
+
+  /** Moving a trim handle shows that point in the preview. */
+  const onTrimChange = (videoTrim: VideoTrim, moved: "start" | "end") => {
+    set("videoTrim", videoTrim);
+    const el = videoRef.current;
+    if (el)
+      el.currentTime = moved === "start" ? videoTrim.start : Math.max(videoTrim.start, videoTrim.end - 1);
+  };
+
+  /** Keeps the preview looping inside the trimmed part, unless the user paused it. */
+  const onPreviewTime = () => {
+    const el = videoRef.current;
+    if (!el) return;
+    const { start, end } = opts.videoTrim;
+    if (el.currentTime >= end || el.currentTime < start - 0.25) el.currentTime = start;
+    if (el.paused && wantPlay.current) void el.play().catch(() => {});
+  };
+
+  const togglePreview = () => {
+    const el = videoRef.current;
+    if (!el) return;
+    wantPlay.current = el.paused;
+    if (el.paused) {
+      // Resume inside the trimmed part
+      const { start, end } = opts.videoTrim;
+      if (el.currentTime >= end || el.currentTime < start) el.currentTime = start;
+      void el.play().catch(() => {});
+    } else el.pause();
+  };
+
+  const onCreateVideo = async () => {
+    const canvas = canvasRef.current;
+    if (!opts.video || !canvas || exporting) return;
+    // Freeze the overlay as drawn now: the editor canvas may redraw during the export
+    const overlay = document.createElement("canvas");
+    overlay.width = canvas.width;
+    overlay.height = canvas.height;
+    overlay.getContext("2d")!.drawImage(canvas, 0, 0);
+    const abort = new AbortController();
+    setExporting({ progress: 0, abort });
+    try {
+      const blob = await exportVideo({
+        clip: opts.video,
+        trim: opts.videoTrim,
+        muted: opts.videoMuted,
+        crop: opts.videoCrop,
+        card: SIZES[opts.format],
+        overlay,
+        signal: abort.signal,
+        onProgress: (progress) => setExporting((e) => (e?.abort === abort ? { ...e, progress } : e)),
+      });
+      if (abort.signal.aborted) return;
+      setVideoBlob(blob);
+      setToast(t.editor.videoReady);
+    } catch {
+      if (!abort.signal.aborted) setToast(t.editor.videoFailed);
+    } finally {
+      setExporting((e) => (e?.abort === abort ? null : e));
+    }
+  };
+
+  const onShareVideo = () => {
+    if (!videoBlob) return;
+    shareImage(videoBlob, filename).catch(() => setToast(t.editor.shareFailed));
   };
 
   const paceLabel = activity && !usesPace(activity) ? t.stats.speed : t.stats.pace;
@@ -459,13 +590,24 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
 
   // Primary action: native share when the device supports it, otherwise copy the sticker.
   // Copy / download live in the menu next to it.
+  // Video: "Create video" first (encoding takes a while and Safari only shares inside the tap
+  // that started it), then share or download the ready MP4.
+  const primary = isVideo
+    ? !videoBlob
+      ? { label: t.editor.createVideo, onClick: () => void onCreateVideo() }
+      : canShareFiles("video/mp4")
+        ? { label: t.editor.share, onClick: onShareVideo }
+        : { label: t.editor.download, onClick: () => void onDownload() }
+    : canShareFiles()
+      ? { label: t.editor.share, onClick: onShare }
+      : { label: t.editor.copyShort, onClick: onCopy };
   const ShareButton = ({ compact = false }: { compact?: boolean }) => (
     <button
       type="button"
-      onClick={canShareFiles() ? onShare : onCopy}
-      disabled={!activity}
-      aria-label={canShareFiles() ? t.editor.share : t.editor.copyShort}
-      title={canShareFiles() ? t.editor.share : t.editor.copyShort}
+      onClick={primary.onClick}
+      disabled={!activity || !!exporting}
+      aria-label={primary.label}
+      title={primary.label}
       className={`btn btn-primary whitespace-nowrap ${compact ? "btn-sm !px-3" : ""}`}
     >
       <svg
@@ -481,14 +623,19 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
         <path d={SHARE_ICON} />
       </svg>
       {/* Compact (mobile bar): icon only, the label stays as accessible name */}
-      {!compact && (canShareFiles() ? t.editor.share : t.editor.copyShort)}
+      {!compact && primary.label}
     </button>
   );
   // Menu entries: back to the list, then the secondary ways to export the picture
   const menuActions: MenuAction[] = [
     { label: t.editor.back, onClick: onBack },
-    ...(canShareFiles() ? [{ label: t.editor.copy, onClick: onCopy, disabled: !activity }] : []),
-    { label: t.editor.download, onClick: () => void onDownload(), disabled: !activity },
+    // A video cannot go through the clipboard
+    ...(canShareFiles() && !isVideo ? [{ label: t.editor.copy, onClick: onCopy, disabled: !activity }] : []),
+    {
+      label: t.editor.download,
+      onClick: () => void onDownload(),
+      disabled: !activity || (isVideo && !videoBlob),
+    },
   ];
 
   const Navbar = ({ className }: { className?: string }) => (
@@ -522,11 +669,30 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
         <div
           // Shrinks to the canvas so the overlay matches it; on phones the canvas is capped to
           // half the screen so the controls stay visible without scrolling.
-          className={`relative mx-auto w-fit max-w-full self-start overflow-hidden rounded-[var(--radius-card)] border border-border shadow-[var(--shadow-card)] lg:mx-0 ${opts.background === "transparent" ? "checker" : ""}`}
+          className={`relative mx-auto w-fit max-w-full self-start overflow-hidden rounded-[var(--radius-card)] border border-border shadow-[var(--shadow-card)] lg:mx-0 ${opts.background === "transparent" ? "checker" : ""} ${isVideo ? "bg-black" : ""}`}
         >
+          {/* Video background: plays under the canvas, which only holds the veil and the elements.
+              object-fit/object-position frame it exactly like the export (focal point, no zoom). */}
+          {isVideo && opts.video && (
+            <video
+              ref={videoRef}
+              key={opts.video.url}
+              src={opts.video.url}
+              muted
+              playsInline
+              autoPlay
+              onPlay={() => setPreviewPlaying(true)}
+              onPause={() => setPreviewPlaying(false)}
+              onLoadedMetadata={(e) => (e.currentTarget.currentTime = opts.videoTrim.start)}
+              onTimeUpdate={onPreviewTime}
+              onEnded={onPreviewTime}
+              className="absolute inset-0 h-full w-full object-cover"
+              style={{ objectPosition: `${opts.videoCrop.x}% ${opts.videoCrop.y}%` }}
+            />
+          )}
           <canvas
             ref={canvasRef}
-            className="block h-auto max-h-[50vh] w-auto max-w-full lg:max-h-none lg:w-full"
+            className="relative block h-auto max-h-[50vh] w-auto max-w-full lg:max-h-none lg:w-full"
             role="img"
             aria-label={activity ? t.editor.previewFor(activity.name) : t.editor.preview}
           />
@@ -539,6 +705,25 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
               onSelect={onSelectLayer}
               onChange={onOverlayChange}
             />
+          )}
+          {exporting && (
+            <div
+              role="status"
+              className="absolute inset-x-0 bottom-0 z-10 space-y-2 bg-black/70 p-3 text-sm text-white"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span>{t.editor.creatingVideo(Math.round(exporting.progress * 100))}</span>
+                <button type="button" onClick={() => exporting.abort.abort()} className="link text-white">
+                  {t.editor.cancel}
+                </button>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-white/25">
+                <div
+                  className="h-full rounded-full bg-primary transition-[width]"
+                  style={{ width: `${exporting.progress * 100}%` }}
+                />
+              </div>
+            </div>
           )}
         </div>
 
@@ -627,7 +812,85 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                     {!opts.photo && <p className="text-sm text-muted">{t.editor.photoStaysLocal}</p>}
                   </div>
                 )}
+                {opts.background === "video" && (
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <input
+                      ref={videoFileRef}
+                      type="file"
+                      accept="video/*"
+                      onChange={onPickVideo}
+                      className="sr-only"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => videoFileRef.current?.click()}
+                      className="btn btn-outline"
+                    >
+                      {opts.video ? t.editor.changeVideo : t.editor.chooseVideo}
+                    </button>
+                    {opts.video && !videoEditing && (
+                      <button type="button" onClick={() => setVideoEditing(true)} className="link text-sm">
+                        {t.editor.cropEdit}
+                      </button>
+                    )}
+                    {opts.video && (
+                      <button type="button" onClick={onRemoveVideo} className="link text-sm">
+                        {t.editor.removePhoto}
+                      </button>
+                    )}
+                    {opts.video && (
+                      <button
+                        type="button"
+                        onClick={togglePreview}
+                        className="btn btn-outline btn-sm"
+                        aria-label={previewPlaying ? t.editor.pause : t.editor.play}
+                        title={previewPlaying ? t.editor.pause : t.editor.play}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                          <path d={previewPlaying ? PAUSE_ICON : PLAY_ICON} />
+                        </svg>
+                      </button>
+                    )}
+                    {!opts.video && <p className="text-sm text-muted">{t.editor.videoStaysLocal}</p>}
+                  </div>
+                )}
               </Field>
+
+              {isVideo && opts.video && (
+                <Field label={t.editor.videoTrim}>
+                  <VideoTrimmer
+                    duration={opts.video.duration}
+                    value={opts.videoTrim}
+                    onChange={onTrimChange}
+                  />
+                  {opts.video.hasAudio ? (
+                    <label className="mt-3 flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={opts.videoMuted}
+                        onChange={(e) => set("videoMuted", e.target.checked)}
+                        className="accent-[var(--color-primary)]"
+                      />
+                      {t.editor.videoMute}
+                    </label>
+                  ) : (
+                    <p className="mt-3 text-sm text-muted">{t.editor.videoNoAudio}</p>
+                  )}
+                </Field>
+              )}
+
+              {isVideo && opts.video && videoEditing && (
+                <Field label={t.editor.focalPoint}>
+                  <PhotoCropper
+                    photo={opts.video.poster}
+                    target={SIZES[opts.format]}
+                    value={opts.videoCrop}
+                    onChange={(videoCrop) => set("videoCrop", videoCrop)}
+                    zoomable={false}
+                    hint={t.editor.videoCropHint}
+                  />
+                </Field>
+              )}
 
               {opts.background === "photo" && opts.photo && photoEditing && (
                 <Field label={t.editor.focalPoint}>
@@ -637,13 +900,6 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                     value={opts.photoCrop}
                     onChange={(photoCrop) => set("photoCrop", photoCrop)}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setPhotoEditing(false)}
-                    className="btn btn-secondary mt-3"
-                  >
-                    {t.editor.cropSave}
-                  </button>
                 </Field>
               )}
               <Field label={t.editor.format}>
@@ -898,7 +1154,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
 
 /**
  * Settings worth keeping between activities: everything that is not tied to one activity
- * (positions, photo, crop are dropped; text styles are kept without their positions).
+ * (positions, photo, video, crop are dropped; text styles are kept without their positions).
  */
 const PREFS_KEY = "ofolam.editorPrefs";
 type EditorPrefs = Partial<
@@ -936,7 +1192,7 @@ function savePrefs(o: CardOptions) {
     if (v) texts[k as keyof CardOptions["texts"]] = { ...v, pos: null };
   const prefs: EditorPrefs = {
     format: o.format,
-    background: o.background === "photo" ? "night" : o.background,
+    background: o.background === "photo" || o.background === "video" ? "night" : o.background,
     mapStyle: o.mapStyle,
     mapOpacity: o.mapOpacity,
     bgTint: o.bgTint,
@@ -978,6 +1234,8 @@ const TABS: { id: Tab; icon: string }[] = [
 /** Maximum length of a custom activity name on the card. */
 const TITLE_MAX = 120;
 const SHARE_ICON = "M12 16V4 M8 8l4-4 4 4 M5 14v6h14v-6";
+const PLAY_ICON = "M7 4.5v15l12.5-7.5z";
+const PAUSE_ICON = "M6 4.5h4v15H6z M14 4.5h4v15h-4z";
 
 /** Section switcher: a vertical rail on desktop, a bottom bar on mobile. */
 function EditorNav({
@@ -1257,8 +1515,16 @@ function Segmented<T extends string>({
   value: T;
   onChange: (v: T) => void;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const cols = useBalancedColumns(ref);
   return (
-    <div role="radiogroup" className="seg">
+    <div
+      ref={ref}
+      role="radiogroup"
+      className="seg"
+      data-cols={cols ?? undefined}
+      style={cols ? ({ "--seg-cols": cols } as React.CSSProperties) : undefined}
+    >
       {options.map((o) => (
         <button
           type="button"
@@ -1268,9 +1534,57 @@ function Segmented<T extends string>({
           onClick={() => onChange(o.id)}
           className="seg-item"
         >
-          {o.label}
+          <span>{o.label}</span>
         </button>
       ))}
     </div>
   );
+}
+
+/**
+ * Column count that spreads a wrapping segmented control evenly over its rows
+ * (6 options on 2 rows: 3 + 3, not 5 + 1). Null while everything fits on one row.
+ * Widths come from the labels' own spans, so the result does not depend on the
+ * layout it produces (no resize loop).
+ */
+function useBalancedColumns(ref: React.RefObject<HTMLDivElement | null>): number | null {
+  const [cols, setCols] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const seg = ref.current;
+    const parent = seg?.parentElement;
+    if (!seg || !parent) return;
+    const measure = () => {
+      const items = Array.from(seg.children) as HTMLElement[];
+      if (items.length < 2) return setCols(null);
+      const px = (v: string) => Number.parseFloat(v) || 0;
+      const segStyle = getComputedStyle(seg);
+      const segPad =
+        px(segStyle.paddingLeft) +
+        px(segStyle.paddingRight) +
+        px(segStyle.borderLeftWidth) +
+        px(segStyle.borderRightWidth);
+      const gap = px(segStyle.columnGap);
+      const widths = items.map((item) => {
+        const style = getComputedStyle(item);
+        const label = item.firstElementChild?.getBoundingClientRect().width ?? 0;
+        return Math.ceil(label + px(style.paddingLeft) + px(style.paddingRight));
+      });
+      const parentStyle = getComputedStyle(parent);
+      const avail = parent.clientWidth - px(parentStyle.paddingLeft) - px(parentStyle.paddingRight) - segPad;
+      const oneRow = widths.reduce((a, b) => a + b, 0) + gap * (items.length - 1);
+      if (oneRow <= avail) return setCols(null);
+      // As many equal columns as the widest option allows, then rebalanced over the rows needed
+      const perRow = Math.max(1, Math.floor((avail + gap) / (Math.max(...widths) + gap)));
+      const rows = Math.ceil(items.length / perRow);
+      setCols(Math.ceil(items.length / rows));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(parent);
+    // Labels change width when web fonts arrive or the language switches
+    for (const item of Array.from(seg.children))
+      if (item.firstElementChild) observer.observe(item.firstElementChild);
+    return () => observer.disconnect();
+  });
+  return cols;
 }

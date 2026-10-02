@@ -13,9 +13,10 @@ import {
 } from "./format";
 import { decodePolyline, fitToBoxWithTransform, trimRoute } from "./polyline";
 import { drawMap, MAP_ATTRIBUTION, type MapStyle } from "./tiles";
+import type { VideoClip, VideoTrim } from "./video";
 
 export type Format = "story" | "post" | "square" | "landscape";
-export type Background = "transparent" | "night" | "topo" | "photo" | "map";
+export type Background = "transparent" | "night" | "topo" | "photo" | "video" | "map";
 /** Decoded user photo. ImageBitmap keeps EXIF orientation; HTMLImageElement is the fallback. */
 export type Photo = ImageBitmap | HTMLImageElement;
 export type StatKey = "distance" | "time" | "pace" | "elevation";
@@ -105,6 +106,15 @@ export type CardOptions = {
   photo: Photo | null;
   /** How the photo is framed: focal point + zoom. */
   photoCrop: Crop;
+  /**
+   * Background video, used when `background === "video"`. The card only draws the veil and the
+   * elements above it: the video plays underneath in the editor and is composited at export.
+   */
+  video: VideoClip | null;
+  /** How the video is framed: focal point only (no zoom). */
+  videoCrop: Crop;
+  videoTrim: VideoTrim;
+  videoMuted: boolean;
   /** Basemap style, used when `background === "map"`. The map follows the route's box. */
   mapStyle: MapStyle;
   /** Map intensity, 0..1: the tiles are veiled with the background color by (1 - intensity). */
@@ -132,6 +142,7 @@ const BACKGROUNDS: Record<Background, { fill: string | null; text: string }> = {
   topo: { fill: palette.topo, text: palette.ink },
   // Without a photo loaded yet, falls back to the night fill
   photo: { fill: palette.night, text: palette.white },
+  video: { fill: palette.night, text: palette.white },
   // Placeholder while tiles load; the text color is picked from the map style
   map: { fill: palette.topo, text: palette.ink },
 };
@@ -273,13 +284,15 @@ export function renderCard(
   const P = 96;
 
   const hasPhoto = opts.background === "photo" && !!opts.photo;
+  const hasVideo = opts.background === "video" && !!opts.video;
 
   ctx.clearRect(0, 0, w, h);
   // The background is drawn later (see "Fond"): a map needs the route's projection,
   // which depends on the layout measured below.
 
   // On a transparent, photo or dark map background, a soft shadow keeps the text readable
-  const needsShadow = opts.background === "transparent" || hasPhoto || (isMap && opts.mapStyle === "dark");
+  const needsShadow =
+    opts.background === "transparent" || hasPhoto || hasVideo || (isMap && opts.mapStyle === "dark");
   const withShadow = (fn: () => void) => {
     ctx.save();
     if (needsShadow) {
@@ -479,8 +492,9 @@ export function renderCard(
   }
 
   // --- Background ---
-  if (hasPhoto) {
-    drawCover(ctx, opts.photo!, w, h, opts.photoCrop);
+  if (hasPhoto || hasVideo) {
+    // A video is not drawn here: the canvas stays transparent under the veil (see CardOptions.video)
+    if (hasPhoto) drawCover(ctx, opts.photo!, w, h, opts.photoCrop);
     // Dark veil at the top and bottom, where the title and the stats sit
     const veil = ctx.createLinearGradient(0, 0, 0, h);
     veil.addColorStop(0, "rgba(0,0,0,0.45)");
