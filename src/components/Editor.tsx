@@ -50,13 +50,13 @@ import VideoTrimmer from "./VideoTrimmer";
 type Props = { activityId: number; onBack: () => void; onSessionLost: () => void };
 
 const backgrounds = (t: Dictionary): { id: Background; label: string }[] => [
-  { id: "transparent", label: t.editor.bgTransparent },
-  { id: "night", label: t.editor.bgNight },
-  { id: "topo", label: t.editor.bgTopo },
   { id: "photo", label: t.editor.bgPhoto },
   // Only offered where the browser can encode it (WebCodecs)
   ...(canExportVideo() ? [{ id: "video" as const, label: t.editor.bgVideo }] : []),
   { id: "map", label: t.editor.bgMap },
+  { id: "transparent", label: t.editor.bgTransparent },
+  { id: "night", label: t.editor.bgNight },
+  { id: "topo", label: t.editor.bgTopo },
 ];
 const mapStyles = (t: Dictionary): { id: MapStyle; label: string }[] => [
   { id: "light", label: t.editor.mapLight },
