@@ -13,8 +13,8 @@
   --color-contour: #c9d3c6;
   --color-ink: #17252b;
   --color-ink-soft: #4a5a60;
-  --color-bib: #2b50ff;
-  --color-strava: #fc4c02;
+  --color-bib: #2e4fe6;
+  --color-sunrise: #f2a33a;
 
   /* Semantic roles (light) */
   --color-primary: var(--color-bib);
@@ -25,7 +25,7 @@
   --color-foreground: var(--color-ink);
   --color-muted: var(--color-ink-soft);
   --color-border: var(--color-contour);
-  --color-accent: var(--color-strava);
+  --color-accent: var(--color-sunrise);
   --color-accent-foreground: #ffffff;
   /* Raised surfaces: cards, chips, inputs */
   --color-surface: #ffffff;
@@ -42,7 +42,7 @@
 /* Dark theme: explicit choice, or system preference when nothing was chosen */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-primary: #5b7bff;
+  --color-primary: #5d7bff;
   --color-secondary: #eef1ec;
   --color-secondary-foreground: #17252b;
   --color-background: #0f1a1f;
@@ -58,7 +58,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not([data-theme="dark"]) {
     color-scheme: dark;
-    --color-primary: #5b7bff;
+    --color-primary: #5d7bff;
     --color-secondary: #eef1ec;
     --color-secondary-foreground: #17252b;
     --color-background: #0f1a1f;

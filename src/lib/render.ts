@@ -97,6 +97,8 @@ export type CardOptions = {
   showName: boolean;
   showMeta: boolean;
   showRoute: boolean;
+  /** Custom activity name drawn instead of Strava's; null = Strava's name. */
+  titleText: string | null;
   /** Meters hidden at the start and at the end of the route (privacy). 0 = full route. */
   routeTrim: number;
   /** Background photo, used when `background === "photo"`. */
@@ -332,7 +334,7 @@ export function renderCard(
     const titleFont = `${weightOf(titleStyle, 700)} ${72 * k}px ${familyOf(titleStyle, DISPLAY)}`;
     const lineH = 68 * k;
     ctx.font = titleFont;
-    const lines = wrapLines(ctx, a.name, w - 2 * P, 2);
+    const lines = wrapLines(ctx, opts.titleText?.trim() || a.name, w - 2 * P, 2);
     // The anchor (tx, ty) is the top-left of the block's box, so a drag that reads the
     // box back as the new position leaves the text exactly where it is.
     const tx = titleStyle.pos ? titleStyle.pos.x * w : P;

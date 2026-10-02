@@ -99,6 +99,8 @@ export const en = {
     routeTrimHint: "Removes that many meters at both ends, e.g. to hide where you live.",
     routeSize: "Route size",
     routeAuto: "Automatic position",
+    titleText: "Text",
+    titleReset: "Use the Strava name",
     textLayout: "Text",
     textHint: "Tap a text, the route or the Strava mention on the preview to adjust it.",
     font: "Font",
