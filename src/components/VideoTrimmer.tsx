@@ -1,3 +1,4 @@
+import { useId, useState } from "react";
 import { useI18n } from "../i18n";
 import { clampTrim, type VideoTrim } from "../lib/video";
 
@@ -9,6 +10,8 @@ type Props = {
 };
 
 const STEP = 0.1;
+/** Seconds rounded to the hundredth, the precision of the fields. */
+const round2 = (s: number) => Math.round(s * 100) / 100;
 
 /** m:ss.s, precise enough to pick a cut point by eye. */
 const formatTime = (s: number) => {
@@ -17,7 +20,10 @@ const formatTime = (s: number) => {
   return `${m}:${rest}`;
 };
 
-/** Two handles on one track: the kept part of the clip, capped to VIDEO_MAX_SECONDS. */
+/**
+ * Two handles on one track for quick picks, and two fields in seconds for precise ones.
+ * The kept part of the clip is capped to VIDEO_MAX_SECONDS.
+ */
 export default function VideoTrimmer({ duration, value, onChange }: Props) {
   const { t } = useI18n();
   const pct = (s: number) => `${(duration > 0 ? s / duration : 0) * 100}%`;
@@ -56,12 +62,74 @@ export default function VideoTrimmer({ duration, value, onChange }: Props) {
           aria-valuetext={formatTime(value.end)}
         />
       </div>
-      <div className="flex items-center justify-between text-sm text-muted">
-        <span>{formatTime(value.start)}</span>
-        <span className="font-medium text-foreground">
-          {t.editor.trimLength((value.end - value.start).toFixed(1))}
+      <div className="flex items-end justify-between gap-3 text-sm">
+        <TimeField label={t.editor.trimStart} value={value.start} onCommit={(s) => move("start", s)} />
+        <span className="pb-2 font-medium text-foreground">
+          {t.editor.trimLength(String(round2(value.end - value.start)))}
         </span>
-        <span>{formatTime(value.end)}</span>
+        <TimeField label={t.editor.trimEnd} value={value.end} onCommit={(s) => move("end", s)} alignEnd />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Seconds field. Typing only edits a draft, applied on Enter or blur: applying every keystroke
+ * would push the other end around while a number is half typed. Arrow keys step by 0.1 s
+ * (1 s with Shift) and apply at once.
+ */
+function TimeField({
+  label,
+  value,
+  onCommit,
+  alignEnd = false,
+}: {
+  label: string;
+  value: number;
+  onCommit: (seconds: number) => void;
+  alignEnd?: boolean;
+}) {
+  const { t } = useI18n();
+  const id = useId();
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? String(round2(value));
+
+  const commit = () => {
+    if (draft === null) return;
+    const seconds = Number.parseFloat(draft.replace(",", "."));
+    setDraft(null);
+    if (Number.isFinite(seconds)) onCommit(round2(seconds));
+  };
+
+  return (
+    <div className={`flex flex-col gap-1 ${alignEnd ? "items-end" : ""}`}>
+      <label htmlFor={id} className="text-muted">
+        {label}
+      </label>
+      <div className="flex items-center gap-1.5">
+        <input
+          id={id}
+          type="text"
+          inputMode="decimal"
+          value={shown}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+              e.preventDefault();
+              const base = Number.parseFloat((draft ?? String(value)).replace(",", "."));
+              const step = (e.shiftKey ? 1 : STEP) * (e.key === "ArrowUp" ? 1 : -1);
+              setDraft(null);
+              onCommit(round2((Number.isFinite(base) ? base : value) + step));
+            }
+          }}
+          aria-describedby={`${id}-unit`}
+          className="w-20 rounded-xl border border-border bg-surface px-3 py-1.5 text-right tabular-nums text-foreground outline-none focus:border-primary"
+        />
+        <span id={`${id}-unit`} className="text-muted" title={t.editor.trimSeconds}>
+          s
+        </span>
       </div>
     </div>
   );

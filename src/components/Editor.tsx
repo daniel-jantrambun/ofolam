@@ -78,6 +78,9 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const videoFileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  // Preview playback: what the user asked for (play / pause button), and what the element is doing
+  const wantPlay = useRef(true);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
   const blobRef = useRef<Blob | null>(null);
   const [activity, setActivity] = useState<Activity | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
@@ -339,6 +342,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
         background: "video",
       }));
       setVideoEditing(true);
+      wantPlay.current = true;
     } catch {
       setToast(t.editor.videoUnreadable);
     }
@@ -357,13 +361,25 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
       el.currentTime = moved === "start" ? videoTrim.start : Math.max(videoTrim.start, videoTrim.end - 1);
   };
 
-  /** Keeps the preview looping inside the trimmed part. */
+  /** Keeps the preview looping inside the trimmed part, unless the user paused it. */
   const onPreviewTime = () => {
     const el = videoRef.current;
     if (!el) return;
     const { start, end } = opts.videoTrim;
     if (el.currentTime >= end || el.currentTime < start - 0.25) el.currentTime = start;
-    if (el.paused) void el.play().catch(() => {});
+    if (el.paused && wantPlay.current) void el.play().catch(() => {});
+  };
+
+  const togglePreview = () => {
+    const el = videoRef.current;
+    if (!el) return;
+    wantPlay.current = el.paused;
+    if (el.paused) {
+      // Resume inside the trimmed part
+      const { start, end } = opts.videoTrim;
+      if (el.currentTime >= end || el.currentTime < start) el.currentTime = start;
+      void el.play().catch(() => {});
+    } else el.pause();
   };
 
   const onCreateVideo = async () => {
@@ -665,6 +681,8 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
               muted
               playsInline
               autoPlay
+              onPlay={() => setPreviewPlaying(true)}
+              onPause={() => setPreviewPlaying(false)}
               onLoadedMetadata={(e) => (e.currentTarget.currentTime = opts.videoTrim.start)}
               onTimeUpdate={onPreviewTime}
               onEnded={onPreviewTime}
@@ -818,6 +836,19 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                     {opts.video && (
                       <button type="button" onClick={onRemoveVideo} className="link text-sm">
                         {t.editor.removePhoto}
+                      </button>
+                    )}
+                    {opts.video && (
+                      <button
+                        type="button"
+                        onClick={togglePreview}
+                        className="btn btn-outline btn-sm"
+                        aria-label={previewPlaying ? t.editor.pause : t.editor.play}
+                        title={previewPlaying ? t.editor.pause : t.editor.play}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                          <path d={previewPlaying ? PAUSE_ICON : PLAY_ICON} />
+                        </svg>
                       </button>
                     )}
                     {!opts.video && <p className="text-sm text-muted">{t.editor.videoStaysLocal}</p>}
@@ -1217,6 +1248,8 @@ const TABS: { id: Tab; icon: string }[] = [
 /** Maximum length of a custom activity name on the card. */
 const TITLE_MAX = 120;
 const SHARE_ICON = "M12 16V4 M8 8l4-4 4 4 M5 14v6h14v-6";
+const PLAY_ICON = "M7 4.5v15l12.5-7.5z";
+const PAUSE_ICON = "M6 4.5h4v15H6z M14 4.5h4v15h-4z";
 
 /** Section switcher: a vertical rail on desktop, a bottom bar on mobile. */
 function EditorNav({
