@@ -9,6 +9,10 @@ type Props = {
   target: Size;
   value: Crop;
   onChange: (crop: Crop) => void;
+  /** False hides the zoom slider (video: focal point only). */
+  zoomable?: boolean;
+  /** Instruction above the picker; defaults to the photo one. */
+  hint?: string;
 };
 
 const PREVIEW_MAX = 220;
@@ -17,7 +21,7 @@ const PREVIEW_MAX = 220;
  * Focal point + zoom picker. Presentational: every change goes through `onChange`.
  * The photo is drawn once in a small canvas (an ImageBitmap has no URL to put in an <img>).
  */
-export default function PhotoCropper({ photo, target, value, onChange }: Props) {
+export default function PhotoCropper({ photo, target, value, onChange, zoomable = true, hint }: Props) {
   const { t } = useI18n();
   const boxRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLCanvasElement>(null);
@@ -64,7 +68,7 @@ export default function PhotoCropper({ photo, target, value, onChange }: Props) 
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted">{t.editor.cropHint}</p>
+      <p className="text-sm text-muted">{hint ?? t.editor.cropHint}</p>
       <div className="flex justify-center rounded-xl bg-surface-2 p-2">
         <div
           ref={boxRef}
@@ -93,31 +97,33 @@ export default function PhotoCropper({ photo, target, value, onChange }: Props) 
         </div>
       </div>
 
-      <div className="space-y-1">
-        <div className="flex items-center justify-between text-sm">
-          <label htmlFor="photo-zoom" className="font-medium text-muted">
-            {t.editor.zoom}
-          </label>
-          <span className="flex items-center gap-2 text-muted">
-            {zoomLabel}×
-            {value.zoom > 1 && (
-              <button type="button" onClick={() => onChange({ ...value, zoom: 1 })} className="link">
-                {t.editor.resetZoom}
-              </button>
-            )}
-          </span>
+      {zoomable && (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-sm">
+            <label htmlFor="photo-zoom" className="font-medium text-muted">
+              {t.editor.zoom}
+            </label>
+            <span className="flex items-center gap-2 text-muted">
+              {zoomLabel}×
+              {value.zoom > 1 && (
+                <button type="button" onClick={() => onChange({ ...value, zoom: 1 })} className="link">
+                  {t.editor.resetZoom}
+                </button>
+              )}
+            </span>
+          </div>
+          <input
+            id="photo-zoom"
+            type="range"
+            min={ZOOM_MIN}
+            max={ZOOM_MAX}
+            step={ZOOM_STEP}
+            value={value.zoom}
+            onChange={(e) => onChange({ ...value, zoom: Number.parseFloat(e.target.value) })}
+            className="range w-full"
+          />
         </div>
-        <input
-          id="photo-zoom"
-          type="range"
-          min={ZOOM_MIN}
-          max={ZOOM_MAX}
-          step={ZOOM_STEP}
-          value={value.zoom}
-          onChange={(e) => onChange({ ...value, zoom: Number.parseFloat(e.target.value) })}
-          className="range w-full"
-        />
-      </div>
+      )}
     </div>
   );
 }
