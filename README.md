@@ -89,6 +89,20 @@ registered once:
 If the map stays blank in production while it works locally, the domain is almost certainly missing
 from the Stadia property.
 
+## Debugging Strava responses
+
+To see exactly what Strava returns, set `DEBUG_STRAVA=1` in `.dev.vars` and restart `pnpm dev`. Every
+raw response is then kept for 24 h in the local KV namespace under a `debug:strava:` key, and a one-line
+summary is printed in the dev server console.
+
+```sh
+pnpm debug:strava                                  # list the captured responses
+pnpm debug:strava:get "debug:strava:<athleteId>:/activities/123"   # print one of them
+```
+
+The flag is read from the worker environment only; never set it in production (`wrangler.jsonc` vars
+or secrets), the cached responses would consume KV storage for nothing.
+
 ## D1 migrations
 
 The schema lives in `migrations/*.sql` and is applied by Wrangler's migration system
@@ -104,8 +118,13 @@ Never edit a migration that has been applied: add a new one instead.
 
 ## How it works
 
+**Providers.** Sign-in and activities go through a provider interface (`worker/providers/types.ts`);
+Strava is the only implementation today (`worker/providers/strava.ts`), Garmin & co can be added as
+new entries of the registry (`worker/providers/index.ts`). Athletes are keyed by `(provider, id)`, and
+each session remembers its provider, so `/api/activities` always asks the right one.
+
 **Cookie-less OAuth.** The PWA generates a `state`, keeps it in localStorage and navigates to
-`/api/auth/start`. On the callback, the Worker binds a session token to that `state`.
+`/api/auth/<provider>/start` (e.g. `/api/auth/strava/start`). On the callback, the Worker binds a session token to that `state`.
 The PWA then claims it through `POST /api/auth/claim` (on load and whenever it comes back to the
 foreground). This works around the iOS in-app browser used in standalone mode, which does not
 share storage with the PWA.
@@ -133,6 +152,13 @@ every text block, style texts (font, color, size), align a multi-selection, crop
 and undo/redo (`src/components/Editor.tsx`). The last used settings (background, format, elements,
 styles, …) are remembered in localStorage and applied to the next activity.
 
+**Multisport events.** Back-to-back activities (next start within 10 min of the previous end, e.g.
+swim → T1 → bike → T2 → run) are grouped client-side into one event (`src/lib/multisport.ts`): a
+single row in the list, unfoldable into its legs, labelled triathlon / duathlon / swim & run /
+aquabike from the sport sequence. Its card draws every leg's route in its own color on a shared
+projection, the total time (transitions included) and one compact line per leg; distance, pace and
+elevation are not shown for an event. Each leg can still be opened on its own.
+
 **Map background.** The "Map" background draws raster tiles in the exact projection of the route
 (`src/lib/tiles.ts`): the map follows the route's box. Default provider: Stadia Maps (OpenStreetMap
 data, free for non-commercial use; see "Map tiles" above for the required domain registration). Another provider can be set through `VITE_TILES_*` in `.env` (see `.env.example`, with a
@@ -159,7 +185,7 @@ The publisher name and contact email come from `VITE_LEGAL_NAME` and `VITE_CONTA
 ## Structure
 
 ```
-worker/        Hono API (OAuth, token refresh, Strava proxy, KV cache)
+worker/        Hono API (OAuth, sessions, KV cache) and providers/ (Strava today)
 src/lib/       api, cache, polyline, formats, canvas rendering, map tiles, sharing
 src/i18n/      dictionaries and language switcher
 src/components Login, ActivityList, Editor and its panels (overlay, cropper, color/text style…)

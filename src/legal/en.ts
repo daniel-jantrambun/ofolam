@@ -42,7 +42,7 @@ export const legalEn: LegalContent = {
       {
         heading: "How long we keep it",
         paragraphs: [
-          "Your athlete record and tokens are kept while your account is connected. Cached activities expire within 24 hours. Sessions are deleted when you sign out.",
+          "Your athlete record and tokens are kept while you have an active session. Signing out of your last session deletes them immediately. A session unused for 90 days is deleted automatically, and so is your record once no session remains. If you revoke the app's access on Strava, your record is deleted the next time the app notices it. Cached activities expire within 24 hours.",
         ],
       },
       {

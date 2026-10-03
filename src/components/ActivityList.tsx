@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "../i18n";
 import { type Activity, type ApiError, listActivities } from "../lib/api";
-import { formatDate, formatDistance, sportLabel } from "../lib/format";
+import { formatDate, formatDistance, formatDuration, sportLabel } from "../lib/format";
+import { groupActivities, type MetaActivity } from "../lib/multisport";
+import type { EditorSubject } from "./Editor";
 import SettingsMenu from "./SettingsMenu";
 
 type Props = {
-  onSelect: (id: number) => void;
+  onSelect: (subject: EditorSubject) => void;
   onLogout: () => void;
   onSessionLost: () => void;
 };
@@ -17,6 +19,8 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiError | null>(null);
+  // Multisport event whose legs are unfolded in the list
+  const [expanded, setExpanded] = useState<string | null>(null);
   // Optional "Buy me a coffee" link, set through VITE_COFFEE_URL in .env (see .env.example)
   const coffeeLink = import.meta.env.VITE_COFFEE_URL;
 
@@ -106,29 +110,26 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
       {!loading && items.length === 0 && !error && <p className="text-muted">{t.list.empty}</p>}
 
       <ul className="card divide-y divide-border overflow-hidden">
-        {items.map((a) => {
-          const d = formatDistance(a, t);
-          return (
-            <li key={a.id}>
-              <button
-                type="button"
-                onClick={() => onSelect(a.id)}
-                className="flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-surface-2"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-muted">
-                    {sportLabel(a.sportType, t)}, {formatDate(a.startDate, t)}
-                  </p>
-                  <p className="truncate text-lg font-medium">{a.name}</p>
-                </div>
-                <p className="font-display text-3xl font-bold tabular-nums">
-                  {d.value}
-                  <span className="ml-1 text-lg">{d.unit}</span>
-                </p>
-              </button>
+        {groupActivities(items).map((entry) =>
+          entry.kind === "single" ? (
+            <li key={entry.activity.id}>
+              <ActivityRow
+                activity={entry.activity}
+                onSelect={() => onSelect({ kind: "single", id: entry.activity.id })}
+              />
             </li>
-          );
-        })}
+          ) : (
+            <li key={entry.meta.id}>
+              <MultiRow
+                meta={entry.meta}
+                expanded={expanded === entry.meta.id}
+                onToggle={() => setExpanded((e) => (e === entry.meta.id ? null : entry.meta.id))}
+                onSelect={() => onSelect({ kind: "multi", ids: entry.meta.legs.map((l) => l.id) })}
+                onSelectLeg={(id) => onSelect({ kind: "single", id })}
+              />
+            </li>
+          ),
+        )}
       </ul>
 
       {loading && <p className="py-6 text-muted">{t.list.loading}</p>}
@@ -139,5 +140,105 @@ export default function ActivityList({ onSelect, onLogout, onSessionLost }: Prop
         </button>
       )}
     </main>
+  );
+}
+
+function ActivityRow({
+  activity: a,
+  onSelect,
+  compact = false,
+}: {
+  activity: Activity;
+  onSelect: () => void;
+  compact?: boolean;
+}) {
+  const { t } = useI18n();
+  const d = formatDistance(a, t);
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`flex w-full items-center gap-4 text-left transition-colors hover:bg-surface-2 ${compact ? "px-4 py-2 pl-10" : "px-4 py-4"}`}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-muted">
+          {sportLabel(a.sportType, t)}
+          {compact ? "" : `, ${formatDate(a.startDate, t)}`}
+        </p>
+        <p className={`truncate font-medium ${compact ? "" : "text-lg"}`}>{a.name}</p>
+      </div>
+      <p className={`font-display font-bold tabular-nums ${compact ? "text-xl" : "text-3xl"}`}>
+        {d.value}
+        <span className="ml-1 text-lg">{d.unit}</span>
+      </p>
+    </button>
+  );
+}
+
+/** A multisport event: one row for the whole event, unfolding its legs. */
+function MultiRow({
+  meta,
+  expanded,
+  onToggle,
+  onSelect,
+  onSelectLeg,
+}: {
+  meta: MetaActivity;
+  expanded: boolean;
+  onToggle: () => void;
+  onSelect: () => void;
+  onSelectLeg: (id: number) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div>
+      <div className="flex items-center">
+        <button
+          type="button"
+          onClick={onSelect}
+          className="flex min-w-0 flex-1 items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-surface-2"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-muted">
+              {t.multi[meta.kind]}, {formatDate(meta.startDate, t)}
+            </p>
+            <p className="truncate text-lg font-medium">
+              {meta.sportLegs.map((l) => sportLabel(l.sportType, t)).join(" · ")}
+            </p>
+          </div>
+          <p className="font-display text-3xl font-bold tabular-nums">{formatDuration(meta.totalTime)}</p>
+        </button>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          aria-label={t.list.legs(meta.sportLegs.length)}
+          title={t.list.legs(meta.sportLegs.length)}
+          className="btn btn-ghost btn-sm mr-2 !px-2"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className={`h-5 w-5 transition-transform ${expanded ? "rotate-180" : ""}`}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+      </div>
+      {expanded && (
+        <ul className="divide-y divide-border border-t border-border bg-surface-2/60">
+          {meta.sportLegs.map((leg) => (
+            <li key={leg.id}>
+              <ActivityRow activity={leg} onSelect={() => onSelectLeg(leg.id)} compact />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

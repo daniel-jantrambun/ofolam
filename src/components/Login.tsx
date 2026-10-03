@@ -44,7 +44,7 @@ export default function Login({ notice }: { notice?: string }) {
         {/* Official "Connect with Strava" button (brand guidelines): used as-is, never restyled */}
         <button
           type="button"
-          onClick={startLogin}
+          onClick={() => startLogin("strava")}
           aria-label={t.login.connect}
           className="mx-auto block rounded-md transition-transform active:scale-[0.98]"
         >

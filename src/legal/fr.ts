@@ -32,7 +32,7 @@ export const legalFr: LegalContent = {
       {
         heading: "Durée de conservation",
         paragraphs: [
-          "Votre fiche d'athlète et vos jetons sont conservés tant que votre compte est connecté. Le cache des activités expire sous 24 heures. Les sessions sont supprimées à la déconnexion.",
+          "Votre fiche d'athlète et vos jetons sont conservés tant que vous avez une session active. Vous déconnecter de votre dernière session les supprime immédiatement. Une session inutilisée pendant 90 jours est supprimée automatiquement, ainsi que votre fiche dès qu'il ne reste plus de session. Si vous révoquez l'accès de l'app sur Strava, votre fiche est supprimée dès que l'app le constate. Le cache des activités expire sous 24 heures.",
         ],
       },
       {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import ActivityList from "./components/ActivityList";
-import Editor from "./components/Editor";
+import Editor, { type EditorSubject } from "./components/Editor";
 import LegalPage, { LEGAL_PAGES, type LegalPageKey } from "./components/LegalPage";
 import Login from "./components/Login";
 import { localeFromCountry, useI18n } from "./i18n";
@@ -19,7 +19,7 @@ function legalPageFromHash(): LegalPageKey | null {
 export default function App() {
   const { t, suggestLocale } = useI18n();
   const [session, setSession] = useState(getSession);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState<EditorSubject | null>(null);
   const [authParam] = useState(() => new URLSearchParams(location.search).get("auth"));
   const [legalPage, setLegalPage] = useState(legalPageFromHash);
 
@@ -68,7 +68,7 @@ export default function App() {
   }
 
   if (selected !== null) {
-    return <Editor activityId={selected} onBack={() => setSelected(null)} onSessionLost={onSessionLost} />;
+    return <Editor subject={selected} onBack={() => setSelected(null)} onSessionLost={onSessionLost} />;
   }
 
   return (

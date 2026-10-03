@@ -1,20 +1,24 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n";
 import type { Dictionary } from "../i18n/en";
 import { type Activity, type ApiError, getActivity } from "../lib/api";
 import { BRAND_COLORS, type BrandColor } from "../lib/brand";
 import { LIGHT_TINTS, NIGHT_TINTS, ROUTE_COLORS } from "../lib/colors";
 import { type Crop, DEFAULT_CROP } from "../lib/crop";
-import { usesPace } from "../lib/format";
+import { sportLabel, usesPace } from "../lib/format";
+import { buildMeta } from "../lib/multisport";
 import {
   type Background,
   type Box,
+  type CardActivity,
   type CardOptions,
   type Corner,
   DEFAULT_TEXT_STYLE,
   ensureFonts,
   type Format,
+  hasStat,
   type LayerKey,
+  LEG_PALETTE,
   layerOrder,
   loadPhoto,
   type Photo,
@@ -47,7 +51,10 @@ import SettingsMenu, { type MenuAction } from "./SettingsMenu";
 import TextStylePanel from "./TextStylePanel";
 import VideoTrimmer from "./VideoTrimmer";
 
-type Props = { activityId: number; onBack: () => void; onSessionLost: () => void };
+/** What the editor works on: one activity, or a multisport event made of several. */
+export type EditorSubject = { kind: "single"; id: number } | { kind: "multi"; ids: number[] };
+
+type Props = { subject: EditorSubject; onBack: () => void; onSessionLost: () => void };
 
 const backgrounds = (t: Dictionary): { id: Background; label: string }[] => [
   { id: "photo", label: t.editor.bgPhoto },
@@ -72,7 +79,8 @@ const formats = (t: Dictionary): { id: Format; label: string }[] => [
   { id: "landscape", label: t.editor.landscape },
 ];
 
-export default function Editor({ activityId, onBack, onSessionLost }: Props) {
+export default function Editor({ subject, onBack, onSessionLost }: Props) {
+  const subjectKey = subject.kind === "single" ? String(subject.id) : subject.ids.join("-");
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -82,7 +90,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   const wantPlay = useRef(true);
   const [previewPlaying, setPreviewPlaying] = useState(false);
   const blobRef = useRef<Blob | null>(null);
-  const [activity, setActivity] = useState<Activity | null>(null);
+  const [activity, setActivity] = useState<CardActivity | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const { resolved } = useTheme();
@@ -96,6 +104,8 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
     showMeta: true,
     showRoute: true,
     routeTrim: 200,
+    legColors: [],
+    showLegs: true,
     titleText: null,
     photo: null,
     photoCrop: DEFAULT_CROP as Crop,
@@ -110,6 +120,9 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
     texts: {},
     order: [] as LayerKey[],
     brandCorner: "bl" as Corner,
+    brandPos: null,
+    creditPos: null,
+    safeInsets: { top: 0, bottom: 0, left: 0, right: 0 },
     brandColor: "auto" as BrandColor,
     creditColor: null,
     ...loadPrefs(),
@@ -121,6 +134,49 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   const [selection, setSelection] = useState<string[]>([]);
   const selected: string | null = selection.length === 1 ? selection[0] : null;
   const [tab, setTab] = useState<Tab>("layout");
+  // Editor-only guide showing the area Instagram covers with its UI on stories / reels
+  // "off" | "story" | "reel", remembered between sessions
+  const [safeZone, setSafeZoneState] = useState<SafeZoneKind | "off">(() => {
+    try {
+      const v = localStorage.getItem("ofolam.safeZone");
+      return v === "off" || v === "reel" ? v : "story";
+    } catch {
+      return "story";
+    }
+  });
+  const setSafeZone = (v: SafeZoneKind | "off") => {
+    try {
+      localStorage.setItem("ofolam.safeZone", v);
+    } catch {
+      // ignore
+    }
+    setSafeZoneState(v);
+    // Picking a guide re-flows everything inside it: automatic positions again, for every element
+    if (v !== "off") {
+      setOpts((o) => {
+        const texts = { ...o.texts };
+        for (const k of Object.keys(texts) as (keyof typeof texts)[]) {
+          const style = texts[k];
+          if (style) texts[k] = { ...style, pos: null };
+        }
+        return { ...o, texts, routeBox: null, brandPos: null, creditPos: null };
+      });
+    }
+  };
+  // The layout keeps the guide's margins clear while it is shown (story format only)
+  useEffect(() => {
+    const zone = opts.format === "story" && safeZone !== "off" ? SAFE_ZONES[safeZone] : null;
+    const next = zone ?? { top: 0, bottom: 0, left: 0, right: 0 };
+    setOpts((o) =>
+      o.safeInsets.top === next.top &&
+      o.safeInsets.bottom === next.bottom &&
+      o.safeInsets.left === next.left &&
+      o.safeInsets.right === next.right
+        ? o
+        : { ...o, safeInsets: next },
+    );
+  }, [safeZone, opts.format]);
+  const SAFE_ZONE = safeZone === "off" ? null : SAFE_ZONES[safeZone];
   // Bumped when a map tile arrives, to redraw the card with it
   const [tileTick, setTileTick] = useState(0);
   // Selecting an element on the preview opens its settings
@@ -237,26 +293,67 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  /** Turns a multisport event's detailed legs into the activity the card is drawn from. */
+  const toEventActivity = useCallback(
+    (legs: Activity[]): CardActivity => {
+      const meta = buildMeta(legs);
+      return {
+        id: legs[0].id,
+        name: t.multi[meta.kind],
+        sportType: "Multisport",
+        startDate: meta.startDate,
+        startUtc: legs[0].startUtc,
+        distance: 0,
+        movingTime: meta.totalTime,
+        elapsedTime: meta.totalTime,
+        elevation: 0,
+        averageSpeed: 0,
+        polyline: null,
+        legs: meta.sportLegs,
+        totalTime: meta.totalTime,
+      };
+    },
+    [t],
+  );
+
+  /** Loads the subject: one activity, or every leg of the event (cache first, then network). */
+  const load = useCallback(
+    (refresh: boolean) => {
+      if (subject.kind === "single") {
+        const { cached, fresh } = getActivity(subject.id, refresh);
+        return { cached: cached as CardActivity | null, fresh: fresh as Promise<CardActivity> };
+      }
+      const parts = subject.ids.map((id) => getActivity(id, refresh));
+      const cachedLegs = parts.map((p) => p.cached);
+      const cached = cachedLegs.every((c): c is Activity => !!c) ? toEventActivity(cachedLegs) : null;
+      return { cached, fresh: Promise.all(parts.map((p) => p.fresh)).then(toEventActivity) };
+    },
+    [subject, toEventActivity],
+  );
+
   useEffect(() => {
     ensureFonts().finally(() => setFontsReady(true));
-    const { cached, fresh } = getActivity(activityId);
+    const { cached, fresh } = load(false);
     if (cached) setActivity(cached);
     fresh.then(setActivity).catch((e: ApiError) => {
       if (e.status === 401) return onSessionLost();
       if (!cached) setError(e);
     });
-  }, [activityId, onSessionLost]);
+  }, [load, onSessionLost]);
 
   /** "Refresh" menu entry: reload this activity from Strava, bypassing both caches. */
   const refreshActivity = async () => {
     try {
-      setActivity(await getActivity(activityId, true).fresh);
+      setActivity(await load(true).fresh);
       setError(null);
     } catch (e) {
       if ((e as ApiError).status === 401) return onSessionLost();
       setError(e as ApiError);
     }
   };
+
+  // Something to draw as a route: the activity's trace, or any leg's
+  const hasRoute = !!activity && (!!activity.polyline || !!activity.legs?.some((l) => l.polyline));
 
   // Render + precomputed blob: navigator.share must fire without waiting inside the click
   useEffect(() => {
@@ -286,7 +383,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   }, [toast]);
 
   const isVideo = opts.background === "video" && !!opts.video;
-  const filename = `ofolam-${activityId}.${isVideo ? "mp4" : "png"}`;
+  const filename = `ofolam-${subjectKey}.${isVideo ? "mp4" : "png"}`;
   const set = <K extends keyof CardOptions>(k: K, v: CardOptions[K]) => setOpts((o) => ({ ...o, [k]: v }));
   const toggleStat = (s: StatKey) =>
     set("stats", opts.stats.includes(s) ? opts.stats.filter((x) => x !== s) : [...opts.stats, s].slice(0, 4));
@@ -422,7 +519,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   const drawnBox = drawn?.routeBox ?? null;
   const boxes: Partial<Record<LayerKey, Box>> = {
     ...(drawn?.texts ?? {}),
-    ...(opts.showRoute && activity?.polyline && drawnBox ? { route: drawnBox } : {}),
+    ...(opts.showRoute && hasRoute && drawnBox ? { route: drawnBox } : {}),
   };
   // Items follow the stacking order (deepest first) so the topmost element wins the tap
   const overlayItems: OverlayItem[] = [
@@ -430,8 +527,8 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
       .filter((key) => boxes[key])
       .map((key) => ({ key, box: boxes[key]!, resizable: key === "route" })),
     // The mention is always on top and only moves between corners
-    ...(drawn ? [{ key: "brand", box: drawn.brandBox, fixed: true }] : []),
-    ...(drawn ? [{ key: "credit", box: drawn.creditBox, fixed: true }] : []),
+    ...(drawn ? [{ key: "brand", box: drawn.brandBox }] : []),
+    ...(drawn ? [{ key: "credit", box: drawn.creditBox }] : []),
   ];
 
   /** Moves the selected layer: one step up (towards the viewer) or down, or straight to the top or bottom. */
@@ -515,14 +612,22 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
     setOpts((o) => {
       const texts = { ...o.texts };
       let routeBox = o.routeBox;
+      let brandPos = o.brandPos;
+      let creditPos = o.creditPos;
       for (const { key, box } of changes) {
         if (key === "route") routeBox = box;
-        else if (key !== "brand" && key !== "credit") {
+        else if (key === "brand") {
+          // The hit box is padded around the logo: convert back to the logo's own origin
+          const inset = drawn?.brandInset ?? { x: 0, y: 0 };
+          brandPos = { x: box.x + inset.x, y: box.y + inset.y };
+        } else if (key === "credit") {
+          creditPos = { x: box.x, y: box.y };
+        } else {
           const textKey = key as TextKey;
           texts[textKey] = { ...(texts[textKey] ?? DEFAULT_TEXT_STYLE), pos: { x: box.x, y: box.y } };
         }
       }
-      return { ...o, texts, routeBox };
+      return { ...o, texts, routeBox, brandPos, creditPos };
     });
   };
   const isTextKey = (k: string | null): k is TextKey =>
@@ -531,16 +636,24 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
   const textLabel = (key: TextKey) => {
     if (key === "title") return t.editor.showTitleName;
     if (key === "meta") return t.editor.showTitleMeta;
+    if (key === "legs") return t.editor.legsLabel;
     const stat = key.slice(5) as StatKey;
     return stat === "pace" ? paceLabel : t.stats[stat];
   };
 
-  const STATS: { id: StatKey; label: string }[] = [
-    { id: "distance", label: t.stats.distance },
-    { id: "time", label: t.stats.time },
-    { id: "pace", label: paceLabel },
-    { id: "elevation", label: t.stats.elevation },
-  ];
+  const STATS: { id: StatKey; label: string }[] = activity?.legs
+    ? [{ id: "time", label: t.stats.totalTime }]
+    : [
+        { id: "distance", label: t.stats.distance },
+        { id: "time", label: t.stats.time },
+        { id: "pace", label: paceLabel },
+        { id: "elevation", label: t.stats.elevation },
+        // Rides with a power meter / cadence sensor
+        ...(activity && hasStat(activity, "power") ? [{ id: "power" as const, label: t.stats.power }] : []),
+        ...(activity && hasStat(activity, "cadence")
+          ? [{ id: "cadence" as const, label: t.stats.cadence }]
+          : []),
+      ];
 
   const UndoRedo = ({ size = "sm" }: { size?: "sm" | "nav" }) => {
     // "nav": two compact rows stacked at the end of the mobile tab bar
@@ -697,6 +810,23 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
             aria-label={activity ? t.editor.previewFor(activity.name) : t.editor.preview}
           />
           {!activity && !error && <p className="p-6 text-muted">{t.editor.loading}</p>}
+          {activity && SAFE_ZONE && opts.format === "story" && (
+            <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+              {/* Instagram story / reel UI: ~13% top, ~22% bottom, right-hand buttons column */}
+              <div
+                className="absolute rounded border border-dashed border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.28)]"
+                style={{
+                  left: `${SAFE_ZONE.left * 100}%`,
+                  top: `${SAFE_ZONE.top * 100}%`,
+                  right: `${SAFE_ZONE.right * 100}%`,
+                  bottom: `${SAFE_ZONE.bottom * 100}%`,
+                }}
+              />
+              <span className="absolute left-2 top-2 rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                {t.editor.safeZones[safeZone as SafeZoneKind]}
+              </span>
+            </div>
+          )}
           {activity && drawn && (
             <CardOverlay
               label={t.editor.preview}
@@ -778,9 +908,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                         className="range w-full"
                       />
                     </div>
-                    <p className="text-sm text-muted">
-                      {activity?.polyline ? t.editor.mapHint : t.editor.mapNoRoute}
-                    </p>
+                    <p className="text-sm text-muted">{hasRoute ? t.editor.mapHint : t.editor.mapNoRoute}</p>
                   </div>
                 )}
                 {opts.background === "photo" && (
@@ -904,6 +1032,21 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
               )}
               <Field label={t.editor.format}>
                 <Segmented options={formats(t)} value={opts.format} onChange={(v) => set("format", v)} />
+                {opts.format === "story" && (
+                  <div className="mt-3">
+                    <p className="mb-1 text-sm">{t.editor.safeZoneToggle}</p>
+                    <Segmented
+                      options={[
+                        { id: "off" as const, label: t.editor.safeZoneOff },
+                        { id: "story" as const, label: t.editor.safeZones.story },
+                        { id: "reel" as const, label: t.editor.safeZones.reel },
+                      ]}
+                      value={safeZone}
+                      onChange={setSafeZone}
+                    />
+                    <p className="mt-1 text-xs text-muted">{t.editor.safeZoneHint}</p>
+                  </div>
+                )}
               </Field>
             </>
           )}
@@ -911,7 +1054,7 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
           {tab === "elements" && (
             <Field label={t.editor.elements}>
               <div className="flex flex-wrap gap-2">
-                {activity?.polyline && (
+                {hasRoute && (
                   <Pill
                     on={opts.showRoute}
                     onClick={() => {
@@ -940,6 +1083,17 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                 >
                   {t.editor.showTitleMeta}
                 </Pill>
+                {activity?.legs && (
+                  <Pill
+                    on={opts.showLegs}
+                    onClick={() => {
+                      set("showLegs", !opts.showLegs);
+                      if (opts.showLegs) setSelection((sel) => sel.filter((k) => k !== "legs"));
+                    }}
+                  >
+                    {t.editor.elementLegs}
+                  </Pill>
+                )}
                 {STATS.map((s) => (
                   <Pill
                     key={s.id}
@@ -1056,13 +1210,26 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
               {selected === "credit" && (
                 <Field label={t.editor.creditColor}>
                   <ColorPicker value={opts.creditColor} onChange={(c) => set("creditColor", c)} allowAuto />
+                  {opts.creditPos && (
+                    <button
+                      type="button"
+                      onClick={() => set("creditPos", null)}
+                      className="link mt-3 text-sm"
+                    >
+                      {t.editor.routeAuto}
+                    </button>
+                  )}
                   <p className="mt-2 text-xs text-muted">{t.editor.creditHint}</p>
                 </Field>
               )}
 
               {selected === "brand" && (
                 <Field label={t.editor.brandCorner}>
-                  <CornerPicker value={opts.brandCorner} onChange={(c) => set("brandCorner", c)} />
+                  <CornerPicker
+                    value={opts.brandCorner}
+                    onChange={(c) => setOpts((o) => ({ ...o, brandCorner: c, brandPos: null }))}
+                  />
+                  {opts.brandPos && <p className="mt-2 text-xs text-muted">{t.editor.brandDragged}</p>}
                   <p className="field-label mt-4">{t.editor.brandColor}</p>
                   <Segmented
                     options={BRAND_COLORS.map((c) => ({ id: c, label: t.editor.brandColors[c] }))}
@@ -1100,10 +1267,33 @@ export default function Editor({ activityId, onBack, onSessionLost }: Props) {
                       </button>
                     )}
                   </div>
-                  <p className="mb-4 text-sm text-muted">{t.editor.routeColor}</p>
-                  <div className="mb-4">
-                    <ColorPicker value={opts.routeColor} onChange={(c) => c && set("routeColor", c)} />
-                  </div>
+                  {activity?.legs ? (
+                    <div className="mb-4 space-y-3">
+                      <p className="text-sm text-muted">{t.editor.legColors}</p>
+                      {activity.legs.map((leg, i) =>
+                        leg.polyline ? (
+                          <div key={leg.id}>
+                            <p className="mb-1 text-xs text-muted">{sportLabel(leg.sportType, t)}</p>
+                            <ColorPicker
+                              value={opts.legColors[i] ?? LEG_PALETTE[i % LEG_PALETTE.length]}
+                              onChange={(c) => {
+                                const next = [...opts.legColors];
+                                next[i] = c;
+                                set("legColors", next);
+                              }}
+                            />
+                          </div>
+                        ) : null,
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <p className="mb-4 text-sm text-muted">{t.editor.routeColor}</p>
+                      <div className="mb-4">
+                        <ColorPicker value={opts.routeColor} onChange={(c) => c && set("routeColor", c)} />
+                      </div>
+                    </>
+                  )}
                   <div className="mb-2">
                     <RouteTrim value={opts.routeTrim} onChange={(v) => set("routeTrim", v)} />
                   </div>
@@ -1171,6 +1361,8 @@ type EditorPrefs = Partial<
     | "showMeta"
     | "showRoute"
     | "routeTrim"
+    | "legColors"
+    | "showLegs"
     | "order"
     | "brandCorner"
     | "brandColor"
@@ -1202,6 +1394,8 @@ function savePrefs(o: CardOptions) {
     showMeta: o.showMeta,
     showRoute: o.showRoute,
     routeTrim: o.routeTrim,
+    legColors: o.legColors,
+    showLegs: o.showLegs,
     order: o.order,
     brandCorner: o.brandCorner,
     brandColor: o.brandColor,
@@ -1231,6 +1425,18 @@ const TABS: { id: Tab; icon: string }[] = [
   { id: "elements", icon: "M5 7h14 M5 12h14 M5 17h9" },
   { id: "style", icon: "M12 3l2.5 5.5L20 9l-4 4 1 6-5-2.7L7 19l1-6-4-4 5.5-.5z" },
 ];
+/**
+ * Fraction of a 9:16 canvas hidden behind Instagram's UI.
+ * - story: Meta's official guidance, 14% top and bottom (250 px of 1920), no side band.
+ * - reel: caption, account and audio take more room at the bottom, and the like / comment /
+ *   share column sits on the right; a cautious estimate (not an official figure).
+ */
+const SAFE_ZONES = {
+  story: { top: 0.1, bottom: 0.14, left: 0, right: 0 },
+  reel: { top: 0.07, bottom: 0.2, left: 0, right: 0.1 },
+} as const;
+type SafeZoneKind = keyof typeof SAFE_ZONES;
+
 /** Maximum length of a custom activity name on the card. */
 const TITLE_MAX = 120;
 const SHARE_ICON = "M12 16V4 M8 8l4-4 4 4 M5 14v6h14v-6";

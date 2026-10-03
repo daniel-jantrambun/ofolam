@@ -1,7 +1,7 @@
 import type { Dictionary } from "../i18n/en";
 import type { Activity } from "./api";
 import { BRAND_RATIO, type BrandColor, brandFile, getBrandLogo } from "./brand";
-import { contrastText, palette } from "./colors";
+import { contrastText, palette, ROUTE_COLORS } from "./colors";
 import { type Crop, DEFAULT_CROP, visibleFrame } from "./crop";
 import {
   formatDate,
@@ -19,7 +19,7 @@ export type Format = "story" | "post" | "square" | "landscape";
 export type Background = "transparent" | "night" | "topo" | "photo" | "video" | "map";
 /** Decoded user photo. ImageBitmap keeps EXIF orientation; HTMLImageElement is the fallback. */
 export type Photo = ImageBitmap | HTMLImageElement;
-export type StatKey = "distance" | "time" | "pace" | "elevation";
+export type StatKey = "distance" | "time" | "pace" | "elevation" | "power" | "cadence";
 
 export const SIZES: Record<Format, { w: number; h: number }> = {
   story: { w: 1080, h: 1920 },
@@ -34,7 +34,13 @@ export type Box = { x: number; y: number; w: number; h: number };
 export type RouteBox = Box;
 
 /** Text blocks the user can style and move. Stats are keyed by their StatKey. */
-export type TextKey = "title" | "meta" | `stat:${StatKey}`;
+export type TextKey = "title" | "meta" | "legs" | `stat:${StatKey}`;
+
+/**
+ * What the card is about: one activity, or a multisport event whose `legs` are drawn
+ * together (one color each) with the total time and one compact line per leg.
+ */
+export type CardActivity = Activity & { legs?: Activity[]; totalTime?: number };
 export type FontKey = "display" | "sans" | "serif" | "mono";
 export type TextStyle = {
   font: FontKey | null; // null = default font of the block
@@ -68,6 +74,9 @@ export const DEFAULT_ORDER: LayerKey[] = [
   "stat:time",
   "stat:pace",
   "stat:elevation",
+  "stat:power",
+  "stat:cadence",
+  "legs",
 ];
 
 /** Full stacking order (deepest first) from a partial user order. */
@@ -88,6 +97,8 @@ export type RenderResult = {
   brandBox: Box;
   /** Box of the "Created on ofolam.com" credit, so it can be selected on the preview. */
   creditBox: Box;
+  /** Offset between `brandBox` and the logo's own top-left (the hit box is padded). */
+  brandInset: { x: number; y: number };
 };
 
 export type CardOptions = {
@@ -102,6 +113,10 @@ export type CardOptions = {
   titleText: string | null;
   /** Meters hidden at the start and at the end of the route (privacy). 0 = full route. */
   routeTrim: number;
+  /** Multisport: one color per leg (index in `legs`); null = palette default for that index. */
+  legColors: (string | null)[];
+  /** Multisport: draw the compact per-leg lines. */
+  showLegs: boolean;
   /** Background photo, used when `background === "photo"`. */
   photo: Photo | null;
   /** How the photo is framed: focal point + zoom. */
@@ -129,9 +144,18 @@ export type CardOptions = {
   order: LayerKey[];
   /** Where the "Powered by Strava" logo sits, and which of the official color variants is used. */
   brandCorner: Corner;
+  /** Free position of the logo (top-left, fractions); null = the corner above. */
+  brandPos: { x: number; y: number } | null;
+  /**
+   * Margins the automatic layout keeps clear (fractions of the card), e.g. the parts of a
+   * story hidden by Instagram's interface. Zero = the normal padding.
+   */
+  safeInsets: { top: number; bottom: number; left: number; right: number };
   brandColor: BrandColor;
   /** Color of the "Created on ofolam.com" credit; null = background's text color. */
   creditColor: string | null;
+  /** Free position of the credit (top-left, fractions); null = corner opposite to the logo. */
+  creditPos: { x: number; y: number } | null;
   /** Dictionary for stat labels, date and number formats. */
   t: Dictionary;
 };
@@ -206,6 +230,11 @@ export function releasePhoto(photo: Photo | null) {
 const SITE_CREDIT_PREFIX = "CREATED ON ";
 const SITE_CREDIT_NAME = "OFOLAM.COM";
 
+/** Default colors for the legs of a multisport event, by leg index. */
+export const LEG_PALETTE: readonly string[] = ROUTE_COLORS.filter(
+  (c) => c !== palette.white && c !== palette.ink,
+);
+
 const DISPLAY = FONTS.display;
 const BODY = FONTS.sans;
 
@@ -221,19 +250,36 @@ export async function ensureFonts() {
   await Promise.all([document.fonts.load(`700 96px ${DISPLAY}`), document.fonts.load(`500 32px ${BODY}`)]);
 }
 
-function statFor(a: Activity, key: StatKey, t: Dictionary): { label: string; value: string; unit: string } {
+function statFor(
+  a: CardActivity,
+  key: StatKey,
+  t: Dictionary,
+): { label: string; value: string; unit: string } {
   switch (key) {
     case "distance":
       return { label: t.stats.distance, ...formatDistance(a, t) };
     case "time":
-      return { label: t.stats.time, value: formatDuration(a.movingTime), unit: "" };
+      return a.legs
+        ? { label: t.stats.totalTime, value: formatDuration(a.totalTime ?? a.elapsedTime), unit: "" }
+        : { label: t.stats.time, value: formatDuration(a.movingTime), unit: "" };
     case "pace": {
       const p = formatPaceOrSpeed(a, t);
       return { label: p.label, value: p.value, unit: p.unit };
     }
     case "elevation":
       return { label: t.stats.elevation, ...formatElevation(a, t) };
+    case "power":
+      return { label: t.stats.power, value: String(Math.round(a.averageWatts ?? 0)), unit: "W" };
+    case "cadence":
+      return { label: t.stats.cadence, value: String(Math.round(a.averageCadence ?? 0)), unit: "rpm" };
   }
+}
+
+/** Whether an activity carries the data a stat needs (power and cadence are not always there). */
+export function hasStat(a: CardActivity, key: StatKey): boolean {
+  if (key === "power") return a.averageWatts != null && a.averageWatts > 0;
+  if (key === "cadence") return a.averageCadence != null && a.averageCadence > 0;
+  return true;
 }
 
 function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number) {
@@ -265,7 +311,7 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
  */
 export function renderCard(
   canvas: HTMLCanvasElement,
-  a: Activity,
+  a: CardActivity,
   opts: CardOptions,
   hooks: RenderHooks = {},
 ): RenderResult {
@@ -273,7 +319,9 @@ export function renderCard(
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d")!;
-  const isMap = opts.background === "map" && !!a.polyline;
+  // A map needs a trace to follow: the activity's, or any leg's for a multisport event
+  const hasTrace = !!a.polyline || !!a.legs?.some((l) => l.polyline);
+  const isMap = opts.background === "map" && hasTrace;
   const tint =
     opts.background === "topo" || opts.background === "night" ? opts.bgTint[opts.background] : null;
   const bg = isMap
@@ -282,6 +330,11 @@ export function renderCard(
       ? { fill: tint, text: contrastText(tint) }
       : BACKGROUNDS[opts.background];
   const P = 96;
+  // Automatic layout margins: the base padding, pushed inwards by the safe insets
+  const PT = Math.max(P, Math.round(opts.safeInsets.top * h));
+  const PB = Math.max(P, Math.round(opts.safeInsets.bottom * h));
+  const PL = Math.max(P, Math.round(opts.safeInsets.left * w));
+  const PR = Math.max(P, Math.round(opts.safeInsets.right * w));
 
   const hasPhoto = opts.background === "photo" && !!opts.photo;
   const hasVideo = opts.background === "video" && !!opts.video;
@@ -321,13 +374,13 @@ export function renderCard(
   // --- Title ---
   // `top` is where the automatic layout ends: it drives the route's automatic box even
   // when the title blocks are moved elsewhere.
-  let top = P;
+  let top = PT;
   if (opts.showMeta) {
     const metaStyle = styleOf("meta");
     const k = sizeOf(metaStyle);
     const metaFont = `${weightOf(metaStyle, 500)} ${32 * k}px ${familyOf(metaStyle, BODY)}`;
     const meta = `${sportLabel(a.sportType, opts.t)}, ${formatDate(a.startDate, opts.t)}`;
-    const mx = metaStyle.pos ? metaStyle.pos.x * w : P;
+    const mx = metaStyle.pos ? metaStyle.pos.x * w : PL;
     const my = metaStyle.pos ? metaStyle.pos.y * h : top;
     layers.set("meta", () =>
       withShadow(() => {
@@ -347,10 +400,10 @@ export function renderCard(
     const titleFont = `${weightOf(titleStyle, 700)} ${72 * k}px ${familyOf(titleStyle, DISPLAY)}`;
     const lineH = 68 * k;
     ctx.font = titleFont;
-    const lines = wrapLines(ctx, opts.titleText?.trim() || a.name, w - 2 * P, 2);
+    const lines = wrapLines(ctx, opts.titleText?.trim() || a.name, w - PL - PR, 2);
     // The anchor (tx, ty) is the top-left of the block's box, so a drag that reads the
     // box back as the new position leaves the text exactly where it is.
-    const tx = titleStyle.pos ? titleStyle.pos.x * w : P;
+    const tx = titleStyle.pos ? titleStyle.pos.x * w : PL;
     const ty = titleStyle.pos ? titleStyle.pos.y * h : top + 8;
     layers.set("title", () =>
       withShadow(() => {
@@ -368,19 +421,53 @@ export function renderCard(
   if (opts.showMeta || opts.showName) top += 48;
 
   // --- Stats (bottom) ---
+  // A multisport event only shows its total time; distance, pace and elevation make no sense
+  const stats: StatKey[] = (a.legs ? opts.stats.filter((k) => k === "time") : opts.stats).filter((k) =>
+    hasStat(a, k),
+  );
   const footerH = 40;
-  const statsH = opts.stats.length ? 150 : 0;
-  const bottom = h - P - footerH - (statsH ? statsH + 32 : 0);
+  const statsH = stats.length ? 150 : 0;
+  // Compact per-leg lines sit above the stats row
+  const legs = a.legs && opts.showLegs ? a.legs : [];
+  const legStyle = styleOf("legs");
+  const legK = sizeOf(legStyle);
+  const legLineH = 38 * legK;
+  const legsH = legs.length ? legs.length * legLineH + 24 : 0;
+  const bottom = h - PB - footerH - (statsH ? statsH + 32 : 0) - legsH;
 
-  if (opts.stats.length) {
-    const colW = (w - 2 * P) / opts.stats.length;
-    const valueSize = opts.stats.length >= 4 ? 76 : 96;
-    opts.stats.forEach((key, i) => {
+  if (legs.length) {
+    const lx = legStyle.pos ? legStyle.pos.x * w : PL;
+    const ly = legStyle.pos ? legStyle.pos.y * h : bottom + 24;
+    const font = `${weightOf(legStyle, 500)} ${28 * legK}px ${familyOf(legStyle, BODY)}`;
+    const lines = legs.map((leg) => {
+      const d = formatDistance(leg, opts.t);
+      return `${sportLabel(leg.sportType, opts.t)}  ·  ${d.value} ${d.unit}  ·  ${formatDuration(leg.movingTime)}`;
+    });
+    layers.set("legs", () =>
+      withShadow(() => {
+        ctx.font = font;
+        ctx.fillStyle = legStyle.color ?? bg.text;
+        ctx.globalAlpha = legStyle.color ? 1 : 0.85;
+        let widest = 0;
+        lines.forEach((line, i) => {
+          ctx.fillText(line, lx, ly + legLineH * (i + 1) - 8 * legK);
+          widest = Math.max(widest, ctx.measureText(line).width);
+        });
+        ctx.globalAlpha = 1;
+        texts.legs = toBox(lx, ly, widest, legLineH * lines.length);
+      }),
+    );
+  }
+
+  if (stats.length) {
+    const colW = (w - PL - PR) / stats.length;
+    const valueSize = stats.length >= 4 ? 76 : 96;
+    stats.forEach((key, i) => {
       const style = styleOf(`stat:${key}`);
       const k = sizeOf(style);
       const s = statFor(a, key, opts.t);
-      const x = style.pos ? style.pos.x * w : P + i * colW;
-      const baseY = style.pos ? style.pos.y * h : bottom + 32;
+      const x = style.pos ? style.pos.x * w : PL + i * colW;
+      const baseY = style.pos ? style.pos.y * h : bottom + legsH + 32;
       const vSize = valueSize * k;
       const labelFont = `${weightOf(style, 500)} ${30 * k}px ${familyOf(style, BODY)}`;
       const valueFont = `${weightOf(style, 700)} ${vSize}px ${familyOf(style, DISPLAY)}`;
@@ -408,7 +495,7 @@ export function renderCard(
   }
 
   // --- Route ---
-  const autoBox: RouteBox = { x: P / w, y: top / h, w: (w - 2 * P) / w, h: (bottom - top - 24) / h };
+  const autoBox: RouteBox = { x: PL / w, y: top / h, w: (w - PL - PR) / w, h: (bottom - top - 24) / h };
   const routeBox = opts.routeBox ?? autoBox;
   const order = layerOrder(opts.order);
   const result: RenderResult = {
@@ -418,17 +505,33 @@ export function renderCard(
     order,
     brandBox: { x: 0, y: 0, w: 0, h: 0 },
     creditBox: { x: 0, y: 0, w: 0, h: 0 },
+    brandInset: { x: 0, y: 0 },
   };
 
   // The route is fitted even when hidden: a map background follows its box.
+  // A multisport event draws every leg that has a GPS trace, in its own color, on a shared
+  // projection; a single activity is the one-leg case.
   let transform: import("./polyline").MercatorTransform | null = null;
-  if (a.polyline) {
+  const legSources: { leg: Activity; index: number }[] = a.legs
+    ? a.legs.map((leg, index) => ({ leg, index })).filter(({ leg }) => !!leg.polyline)
+    : a.polyline
+      ? [{ leg: a, index: 0 }]
+      : [];
+  if (legSources.length) {
     const lineWidth = Math.round(Math.min(w, h) * 0.012);
     // The reported box hugs the drawn route (points + end dots). Fitting happens inside
     // the box minus that padding, so reading the box back as `routeBox` redraws the route
     // exactly where it is.
     const pad = lineWidth * 1.3;
-    const fit = fitToBoxWithTransform(trimRoute(decodePolyline(a.polyline), opts.routeTrim), {
+    // Privacy trim applies to the very start and the very end of the whole event
+    const decoded = legSources.map(({ leg }, i) =>
+      trimRoute(
+        decodePolyline(leg.polyline as string),
+        i === 0 ? opts.routeTrim : 0,
+        i === legSources.length - 1 ? opts.routeTrim : 0,
+      ),
+    );
+    const fit = fitToBoxWithTransform(decoded.flat(), {
       x: routeBox.x * w + pad,
       y: routeBox.y * h + pad,
       w: Math.max(1, routeBox.w * w - 2 * pad),
@@ -453,11 +556,24 @@ export function renderCard(
         w: (maxX - minX + 2 * pad) / w,
         h: (maxY - minY + 2 * pad) / h,
       };
-      const path = new Path2D();
-      path.moveTo(pts[0][0], pts[0][1]);
-      for (const [x, y] of pts.slice(1)) path.lineTo(x, y);
+      // Split the fitted points back per leg
+      const paths: { path: Path2D; color: string; first: [number, number]; last: [number, number] }[] = [];
+      let offset = 0;
+      decoded.forEach((legPts, i) => {
+        const slice = pts.slice(offset, offset + legPts.length);
+        offset += legPts.length;
+        if (slice.length < 2) return;
+        const path = new Path2D();
+        path.moveTo(slice[0][0], slice[0][1]);
+        for (const [x, y] of slice.slice(1)) path.lineTo(x, y);
+        const legIndex = legSources[i].index;
+        const color = a.legs
+          ? (opts.legColors[legIndex] ?? LEG_PALETTE[legIndex % LEG_PALETTE.length])
+          : opts.routeColor;
+        paths.push({ path, color, first: slice[0], last: slice[slice.length - 1] });
+      });
 
-      if (opts.showRoute) {
+      if (opts.showRoute && paths.length) {
         layers.set("route", () => {
           ctx.save();
           ctx.lineJoin = "round";
@@ -465,25 +581,27 @@ export function renderCard(
           if (needsShadow) {
             ctx.strokeStyle = "rgba(0,0,0,0.28)";
             ctx.lineWidth = lineWidth + 10;
+            for (const { path } of paths) ctx.stroke(path);
+          }
+          ctx.lineWidth = lineWidth;
+          for (const { path, color } of paths) {
+            ctx.strokeStyle = color;
             ctx.stroke(path);
           }
-          ctx.strokeStyle = opts.routeColor;
-          ctx.lineWidth = lineWidth;
-          ctx.stroke(path);
 
-          // Start: ring; finish: solid dot
-          const [sx, sy] = pts[0];
-          const [ex, ey] = pts[pts.length - 1];
+          // Start: ring; finish: solid dot (of the first / last leg)
+          const [sx, sy] = paths[0].first;
+          const [ex, ey] = paths[paths.length - 1].last;
           ctx.beginPath();
           ctx.arc(ex, ey, lineWidth * 1.3, 0, Math.PI * 2);
-          ctx.fillStyle = opts.routeColor;
+          ctx.fillStyle = paths[paths.length - 1].color;
           ctx.fill();
           ctx.beginPath();
           ctx.arc(sx, sy, lineWidth * 1.3, 0, Math.PI * 2);
           ctx.fillStyle = bg.fill ?? palette.white;
           ctx.fill();
           ctx.lineWidth = lineWidth * 0.6;
-          ctx.strokeStyle = opts.routeColor;
+          ctx.strokeStyle = paths[0].color;
           ctx.stroke();
           ctx.restore();
         });
@@ -532,15 +650,28 @@ export function renderCard(
   withShadow(() => {
     ctx.fillStyle = bg.text;
     ctx.globalAlpha = 0.6;
-    const right = opts.brandCorner === "tr" || opts.brandCorner === "br";
-    const topSide = opts.brandCorner === "tl" || opts.brandCorner === "tr";
-    const by = topSide ? P - 16 : h - P + 10;
-
     // Official logo, 36 px high on a 1080 px card (Strava requires ≥ 30 px at 1×)
     const logoH = 36;
     const logoW = logoH * BRAND_RATIO;
-    const bx = right ? w - P - logoW : P;
-    const logoTop = by - logoH + 6; // sit on the same baseline as the credit text
+    // Corner placement, unless the logo was dragged somewhere; the credits then take the
+    // opposite side of whichever half the logo sits in
+    const cornerRight = opts.brandCorner === "tr" || opts.brandCorner === "br";
+    const cornerTop = opts.brandCorner === "tl" || opts.brandCorner === "tr";
+    // Credits stay in the corner opposite to `brandCorner` even when the logo was dragged
+    // elsewhere, so the two never collide
+    const right = cornerRight;
+    const topSide = cornerTop;
+    // Credits baseline. With the normal padding the line sits just outside the margin (a
+    // visual choice); with safe insets it must stay entirely on the visible side of the limit.
+    const by = topSide
+      ? opts.safeInsets.top > 0
+        ? PT + logoH + 4
+        : PT - 16
+      : opts.safeInsets.bottom > 0
+        ? h - PB - 14
+        : h - PB + 10;
+    const logoTop = opts.brandPos ? opts.brandPos.y * h : by - logoH + 6;
+    const bx = opts.brandPos ? opts.brandPos.x * w : cornerRight ? w - PR - logoW : PL;
     const logo = getBrandLogo(brandFile(opts.brandColor, bg.text), hooks.onTileLoaded);
     if (logo) {
       ctx.globalAlpha = 1;
@@ -549,11 +680,12 @@ export function renderCard(
     } else {
       // Logo not loaded yet: plain text placeholder at the same spot
       ctx.font = `500 24px ${BODY}`;
-      ctx.fillText("Powered by Strava", bx, by);
+      ctx.fillText("Powered by Strava", bx, logoTop + logoH - 6);
       result.complete = false;
     }
     // Generous hit box with clear space around the logo
     result.brandBox = toBox(bx - 12, logoTop - 12, logoW + 24, logoH + 24);
+    result.brandInset = { x: 12 / w, y: 12 / h };
 
     // Opposite side: our credit (same size as the logo's wordmark), then the map attribution
     // stacked above/below it when the map is shown
@@ -568,22 +700,25 @@ export function renderCard(
     ctx.font = nameFont;
     const nameW = ctx.measureText(SITE_CREDIT_NAME).width;
     const creditW = prefixW + nameW;
-    const creditX = right ? P : w - P - creditW;
+    // The credit's box top-left is its anchor, so a drag reads it back exactly
+    const creditTop = opts.creditPos ? opts.creditPos.y * h : by - 40;
+    const creditX = opts.creditPos ? opts.creditPos.x * w : right ? PL : w - PR - creditW;
+    const creditBase = creditTop + 40;
     ctx.fillStyle = opts.creditColor ?? bg.text;
     ctx.font = prefixFont;
     ctx.globalAlpha = 0.75;
-    ctx.fillText(SITE_CREDIT_PREFIX, creditX, by);
+    ctx.fillText(SITE_CREDIT_PREFIX, creditX, creditBase);
     ctx.font = nameFont;
     ctx.globalAlpha = 1;
-    ctx.fillText(SITE_CREDIT_NAME, creditX + prefixW, by);
-    result.creditBox = toBox(creditX - 12, by - 40, creditW + 24, 52);
+    ctx.fillText(SITE_CREDIT_NAME, creditX + prefixW, creditBase);
+    result.creditBox = toBox(creditX, creditTop, creditW, 52);
 
     if (isMap) {
       // Map attribution stacked away from the edge, same color, softer
       ctx.font = `400 20px ${BODY}`;
       const aw = ctx.measureText(MAP_ATTRIBUTION).width;
       ctx.globalAlpha = opts.creditColor ? 0.85 : 0.6;
-      ctx.fillText(MAP_ATTRIBUTION, right ? P : w - P - aw, topSide ? by + 30 : by - 34);
+      ctx.fillText(MAP_ATTRIBUTION, right ? PL : w - PR - aw, topSide ? by + 30 : by - 34);
     }
     ctx.globalAlpha = 1;
   });

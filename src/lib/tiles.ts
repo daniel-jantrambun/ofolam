@@ -32,6 +32,8 @@ export const MAP_ATTRIBUTION = env.VITE_TILES_ATTRIBUTION || DEFAULT_ATTRIBUTION
 /** Logical tile size; we fetch @2x images (512 px) for a sharp 1080 px canvas. */
 const TILE = 256;
 const MAX_ZOOM = 19;
+/** A failed tile is retried after this delay. */
+const RETRY_DELAY_MS = 4000;
 
 const tileUrl = (style: MapStyle, z: number, x: number, y: number) =>
   TILES[style].replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y));
@@ -57,7 +59,15 @@ function getTile(
     cache.set(url, img);
     onLoad?.();
   };
-  img.onerror = () => cache.set(url, "failed");
+  img.onerror = () => {
+    // Transient network errors (QUIC resets, flaky connections) must not leave a hole in the
+    // map until the page is reloaded: forget the failure after a while and redraw, which retries.
+    cache.set(url, "failed");
+    window.setTimeout(() => {
+      cache.delete(url);
+      onLoad?.();
+    }, RETRY_DELAY_MS);
+  };
   img.src = url;
   return null;
 }

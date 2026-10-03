@@ -1,4 +1,5 @@
-import type { Env } from "./strava";
+import type { Env } from "./env";
+import type { ProviderName } from "./providers/types";
 
 /** Activities list: short TTL so a freshly recorded activity shows up quickly. */
 export const LIST_TTL_S = 5 * 60;
@@ -25,5 +26,7 @@ export async function cached<T>(
   return value;
 }
 
-export const listKey = (athleteId: number, page: number) => `activities:${athleteId}:p${page}`;
-export const activityKey = (athleteId: number, id: string | number) => `activity:${athleteId}:${id}`;
+export const listKey = (provider: ProviderName, athleteId: number, page: number) =>
+  `activities:${provider}:${athleteId}:p${page}`;
+export const activityKey = (provider: ProviderName, athleteId: number, id: string | number) =>
+  `activity:${provider}:${athleteId}:${id}`;
