@@ -14,6 +14,8 @@
     "db:migrate": "wrangler d1 migrations create ofolam",
     "db:migrate:local": "wrangler d1 migrations apply ofolam --local",
     "db:migrate:remote": "wrangler d1 migrations apply ofolam --remote",
+    "debug:strava": "wrangler kv key list --binding CACHE --local --prefix debug:strava:",
+    "debug:strava:get": "node -e \"const k=process.argv[1];require('child_process').execFile('./node_modules/.bin/wrangler',['kv','key','get','--binding','CACHE','--local',k],{maxBuffer:1e8},(e,out)=>{if(e){console.error(e.message);process.exit(1)}console.log(JSON.stringify(JSON.parse(out),null,2))})\"",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {

@@ -27,6 +27,8 @@
   "vars": {
     "STRAVA_CLIENT_ID": "282591"
   },
+  // Nightly cleanup of sessions idle for 90 days and of athletes without a session (worker/cleanup.ts)
+  "triggers": { "crons": ["30 3 * * *"] },
   "routes": [{ "pattern": "ofolam.com", "custom_domain": true }]
   // Secrets (wrangler secret put / .dev.vars): STRAVA_CLIENT_SECRET, TOKEN_KEY
 }

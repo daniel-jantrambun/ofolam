@@ -2,12 +2,15 @@ export type Activity = {
   id: number;
   name: string;
   sportType: string;
-  startDate: string;
+  startDate: string; // local time, "Z" suffixed (see format.ts)
+  startUtc?: string; // real UTC start, used to detect back-to-back activities (multisport)
   distance: number; // meters
   movingTime: number; // seconds
   elapsedTime: number;
   elevation: number; // meters
   averageSpeed: number; // m/s
+  averageWatts?: number | null; // rides with a power meter (or Strava's estimate)
+  averageCadence?: number | null; // rpm for rides
   polyline: string | null;
 };
 
@@ -19,7 +22,10 @@ const STATE_KEY = "ofolam.oauthState";
 export const getSession = () => localStorage.getItem(SESSION_KEY);
 export const hasPendingLogin = () => !!localStorage.getItem(STATE_KEY);
 
-export type Me = { id: number; firstname: string | null; country: string | null };
+/** Sign-in providers the worker supports (see worker/providers). */
+export type ProviderName = "strava";
+
+export type Me = { provider: ProviderName; id: number; firstname: string | null; country: string | null };
 
 /** `code` is an error code translated by the UI (see `src/i18n`, `errors`). */
 export class ApiError extends Error {
@@ -39,10 +45,10 @@ function randomState(): string {
     .replace(/=+$/, "");
 }
 
-export function startLogin() {
+export function startLogin(provider: ProviderName = "strava") {
   const state = randomState();
   localStorage.setItem(STATE_KEY, state);
-  window.location.href = `/api/auth/start?state=${state}`;
+  window.location.href = `/api/auth/${provider}/start?state=${state}`;
 }
 
 /**
