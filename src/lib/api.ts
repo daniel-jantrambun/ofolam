@@ -98,6 +98,41 @@ export const getMe = () => api<Me>("/me");
 // Stale-while-revalidate: `cached` is available immediately, `fresh` comes from the network.
 export type Cached<T> = { cached: T | null; fresh: Promise<T> };
 
+// ---------- Personal templates (see src/lib/templates.ts) ----------
+export type StoredTemplate<T = unknown> = { id: string; name: string; options: T };
+const TEMPLATES_CACHE_KEY = "templates";
+const TEMPLATES_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** Stale-while-revalidate like the activities: the cached list shows up right away. */
+export function listTemplates<T>(): Cached<StoredTemplate<T>[]> {
+  const cached = cache.get<StoredTemplate<T>[]>(TEMPLATES_CACHE_KEY, TEMPLATES_MAX_AGE_MS);
+  const fresh = api<StoredTemplate<T>[]>("/templates").then((list) => {
+    cache.set(TEMPLATES_CACHE_KEY, list);
+    return list;
+  });
+  return { cached, fresh };
+}
+
+export async function createTemplate<T>(name: string, options: T): Promise<StoredTemplate<T>> {
+  const created = await api<StoredTemplate<T>>("/templates", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, options }),
+  });
+  const list = cache.get<StoredTemplate<T>[]>(TEMPLATES_CACHE_KEY, TEMPLATES_MAX_AGE_MS) ?? [];
+  cache.set(TEMPLATES_CACHE_KEY, [...list, created]);
+  return created;
+}
+
+export async function deleteTemplate(id: string): Promise<void> {
+  await api(`/templates/${encodeURIComponent(id)}`, { method: "DELETE" });
+  const list = cache.get<StoredTemplate[]>(TEMPLATES_CACHE_KEY, TEMPLATES_MAX_AGE_MS) ?? [];
+  cache.set(
+    TEMPLATES_CACHE_KEY,
+    list.filter((t) => t.id !== id),
+  );
+}
+
 /** Only the first page is cached: it is what the user sees when the app opens. */
 const LIST_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const ACTIVITY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;

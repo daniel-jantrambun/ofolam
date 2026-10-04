@@ -109,6 +109,8 @@ app.use("/me", auth);
 app.use("/activities", auth);
 app.use("/activities/*", auth);
 app.use("/auth/logout", auth);
+app.use("/templates", auth);
+app.use("/templates/*", auth);
 
 app.post("/auth/logout", async (c) => {
   const token = c.req.header("Authorization")!.slice(7);
@@ -161,6 +163,60 @@ app.get("/activities/:id", async (c) => {
     fresh,
   );
   return c.json(activity);
+});
+
+// ---------- Personal templates ----------
+
+const TEMPLATES_MAX = 20;
+const TEMPLATE_NAME_MAX = 40;
+/** Stored options are an opaque JSON for the worker; keep them small (positions, colors, …). */
+const TEMPLATE_OPTIONS_MAX_BYTES = 16 * 1024;
+
+type TemplateRow = { id: string; name: string; options: string; created_at: number };
+const rowToTemplate = (r: TemplateRow) => ({
+  id: r.id,
+  name: r.name,
+  options: JSON.parse(r.options) as unknown,
+});
+
+app.get("/templates", async (c) => {
+  const { results } = await c.env.DB.prepare(
+    "SELECT id, name, options, created_at FROM templates WHERE provider = ? AND athlete_id = ? ORDER BY created_at",
+  )
+    .bind(c.get("provider"), c.get("athleteId"))
+    .all<TemplateRow>();
+  return c.json(results.map(rowToTemplate));
+});
+
+app.post("/templates", async (c) => {
+  type TemplateBody = { name?: unknown; options?: unknown };
+  const body = await c.req.json<TemplateBody>().catch((): TemplateBody => ({}));
+  const name = typeof body.name === "string" ? body.name.trim().slice(0, TEMPLATE_NAME_MAX) : "";
+  if (!name || typeof body.options !== "object" || body.options === null) {
+    return c.json({ error: "invalid_template" }, 400);
+  }
+  const options = JSON.stringify(body.options);
+  if (options.length > TEMPLATE_OPTIONS_MAX_BYTES) return c.json({ error: "invalid_template" }, 400);
+  const count = await c.env.DB.prepare(
+    "SELECT count(*) AS n FROM templates WHERE provider = ? AND athlete_id = ?",
+  )
+    .bind(c.get("provider"), c.get("athleteId"))
+    .first<{ n: number }>();
+  if ((count?.n ?? 0) >= TEMPLATES_MAX) return c.json({ error: "too_many_templates" }, 409);
+  const id = randomToken().slice(0, 16);
+  await c.env.DB.prepare(
+    "INSERT INTO templates (provider, athlete_id, id, name, options, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+  )
+    .bind(c.get("provider"), c.get("athleteId"), id, name, options, now())
+    .run();
+  return c.json({ id, name, options: body.options }, 201);
+});
+
+app.delete("/templates/:id", async (c) => {
+  await c.env.DB.prepare("DELETE FROM templates WHERE provider = ? AND athlete_id = ? AND id = ?")
+    .bind(c.get("provider"), c.get("athleteId"), c.req.param("id"))
+    .run();
+  return c.json({ ok: true });
 });
 
 app.onError((err, c) => {

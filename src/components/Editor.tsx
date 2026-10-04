@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n";
 import type { Dictionary } from "../i18n/en";
-import { type Activity, type ApiError, getActivity } from "../lib/api";
+import {
+  type Activity,
+  type ApiError,
+  createTemplate,
+  deleteTemplate,
+  getActivity,
+  listTemplates,
+} from "../lib/api";
 import { BRAND_COLORS, type BrandColor } from "../lib/brand";
 import { LIGHT_TINTS, NIGHT_TINTS, ROUTE_COLORS } from "../lib/colors";
 import { type Crop, DEFAULT_CROP } from "../lib/crop";
@@ -32,6 +39,16 @@ import {
   type TextKey,
 } from "../lib/render";
 import { canShareFiles, canvasToBlob, copyImage, downloadBlob, shareImage } from "../lib/share";
+import {
+  applyTemplate,
+  BUILT_IN_TEMPLATES,
+  extractTemplate,
+  MORE_TEMPLATES,
+  PERSONAL_TEMPLATES_MAX,
+  TEMPLATE_NAME_MAX,
+  type Template,
+  type TemplateOptions,
+} from "../lib/templates";
 import type { MapStyle } from "../lib/tiles";
 import {
   canExportVideo,
@@ -48,6 +65,7 @@ import ColorPicker from "./ColorPicker";
 import CornerPicker from "./CornerPicker";
 import PhotoCropper from "./PhotoCropper";
 import SettingsMenu, { type MenuAction } from "./SettingsMenu";
+import TemplateStrip from "./TemplateStrip";
 import TextStylePanel from "./TextStylePanel";
 import VideoTrimmer from "./VideoTrimmer";
 
@@ -134,6 +152,41 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
   const [selection, setSelection] = useState<string[]>([]);
   const selected: string | null = selection.length === 1 ? selection[0] : null;
   const [tab, setTab] = useState<Tab>("layout");
+  // Personal templates (D1, cached locally) shown after the built-in ones
+  const [personal, setPersonal] = useState<Template[]>([]);
+  useEffect(() => {
+    const toTemplates = (list: { id: string; name: string; options: TemplateOptions }[]) =>
+      list.map((x) => ({ id: x.id, name: x.name, builtIn: false, options: x.options }));
+    const { cached, fresh } = listTemplates<TemplateOptions>();
+    if (cached) setPersonal(toTemplates(cached));
+    fresh.then((list) => setPersonal(toTemplates(list))).catch(() => {});
+  }, []);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const applyTpl = (tpl: Template) => {
+    setOpts((o) => applyTemplate(o, tpl.options));
+    setSelection([]);
+  };
+  const saveTemplate = async () => {
+    const name = templateName.trim().slice(0, TEMPLATE_NAME_MAX);
+    if (!name) return;
+    try {
+      const created = await createTemplate(name, extractTemplate(opts));
+      setPersonal((p) => [
+        ...p,
+        { id: created.id, name: created.name, builtIn: false, options: created.options },
+      ]);
+      setTemplateName("");
+      setSavingTemplate(false);
+      setToast(t.templates.saved);
+    } catch {
+      setToast(t.templates.saveFailed);
+    }
+  };
+  const removeTemplate = async (tpl: Template) => {
+    setPersonal((p) => p.filter((x) => x.id !== tpl.id));
+    await deleteTemplate(tpl.id).catch(() => {});
+  };
   // Editor-only guide showing the area Instagram covers with its UI on stories / reels
   // "off" | "story" | "reel", remembered between sessions
   const [safeZone, setSafeZoneState] = useState<SafeZoneKind | "off">(() => {
@@ -862,6 +915,60 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
 
           {tab === "layout" && (
             <>
+              {activity && (
+                <Field label={t.templates.title}>
+                  <TemplateStrip
+                    activity={activity}
+                    opts={opts}
+                    templates={[...BUILT_IN_TEMPLATES, ...personal]}
+                    more={MORE_TEMPLATES}
+                    onApply={applyTpl}
+                    onDelete={removeTemplate}
+                    refreshTick={tileTick}
+                  />
+                  {savingTemplate ? (
+                    <form
+                      className="mt-2 flex flex-wrap items-center gap-2"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void saveTemplate();
+                      }}
+                    >
+                      <input
+                        type="text"
+                        value={templateName}
+                        maxLength={TEMPLATE_NAME_MAX}
+                        placeholder={t.templates.namePlaceholder}
+                        onChange={(e) => setTemplateName(e.target.value)}
+                        className="min-w-0 flex-1 rounded-xl border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-primary"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!templateName.trim()}
+                        className="btn btn-primary btn-sm"
+                      >
+                        {t.templates.save}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSavingTemplate(false)}
+                        className="btn btn-ghost btn-sm"
+                      >
+                        {t.templates.cancel}
+                      </button>
+                    </form>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setSavingTemplate(true)}
+                      disabled={personal.length >= PERSONAL_TEMPLATES_MAX}
+                      className="link mt-1 text-sm"
+                    >
+                      {t.templates.saveCurrent}
+                    </button>
+                  )}
+                </Field>
+              )}
               <Field label={t.editor.background}>
                 <Segmented
                   options={backgrounds(t)}

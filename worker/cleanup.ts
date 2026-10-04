@@ -17,6 +17,11 @@ export async function cleanup(env: Env): Promise<{ sessions: number; athletes: n
        SELECT 1 FROM sessions s WHERE s.provider = athletes.provider AND s.athlete_id = athletes.id
      )`,
   ).run();
+  await env.DB.prepare(
+    `DELETE FROM templates WHERE NOT EXISTS (
+       SELECT 1 FROM athletes a WHERE a.provider = templates.provider AND a.id = templates.athlete_id
+     )`,
+  ).run();
   await env.DB.prepare("DELETE FROM oauth_states WHERE created_at < ?")
     .bind(now() - 3600)
     .run();
@@ -27,6 +32,7 @@ export async function cleanup(env: Env): Promise<{ sessions: number; athletes: n
 export async function forgetAthlete(env: Env, provider: string, athleteId: number) {
   await env.DB.batch([
     env.DB.prepare("DELETE FROM sessions WHERE provider = ? AND athlete_id = ?").bind(provider, athleteId),
+    env.DB.prepare("DELETE FROM templates WHERE provider = ? AND athlete_id = ?").bind(provider, athleteId),
     env.DB.prepare("DELETE FROM athletes WHERE provider = ? AND id = ?").bind(provider, athleteId),
   ]);
 }

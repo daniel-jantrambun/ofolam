@@ -159,6 +159,15 @@ aquabike from the sport sequence. Its card draws every leg's route in its own co
 projection, the total time (transitions included) and one compact line per leg; distance, pace and
 elevation are not shown for an event. Each leg can still be opened on its own.
 
+**Templates.** The "Fond" tab starts with a strip of live thumbnails: the current activity drawn
+with each template. Built-in templates ship with the app (`src/lib/templates.ts`); personal ones are
+saved in D1 per athlete (`templates` table, `/api/templates`, 20 max) and cached locally. A template
+is a layout: elements, positions, styles. The format and the background are chosen separately and
+never change when a template is applied; the photo crop and a custom title are not part of it either.
+The strip shows the base layouts and the personal templates; a "More" button opens a dialog with
+variations of the base layouts (route color picked up by the stats, text sizes, fonts), generated in
+`src/lib/templates.ts`.
+
 **Map background.** The "Map" background draws raster tiles in the exact projection of the route
 (`src/lib/tiles.ts`): the map follows the route's box. Default provider: Stadia Maps (OpenStreetMap
 data, free for non-commercial use; see "Map tiles" above for the required domain registration). Another provider can be set through `VITE_TILES_*` in `.env` (see `.env.example`, with a
