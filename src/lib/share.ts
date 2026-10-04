@@ -26,6 +26,20 @@ export async function shareImage(blob: Blob, filename: string): Promise<"shared"
   }
 }
 
+/** Same as `shareImage` with several pictures: Instagram then offers them as one carousel. */
+export async function shareImages(
+  items: { blob: Blob; filename: string }[],
+): Promise<"shared" | "cancelled"> {
+  const files = items.map((i) => new File([i.blob], i.filename, { type: i.blob.type || "image/png" }));
+  try {
+    await navigator.share({ files });
+    return "shared";
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") return "cancelled";
+    throw e;
+  }
+}
+
 /**
  * Copies the image to the clipboard, to paste it as a sticker in an Instagram story.
  * A promise is handed to ClipboardItem (Safari requires it to stay within the user gesture).

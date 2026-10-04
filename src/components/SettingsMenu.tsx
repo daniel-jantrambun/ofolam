@@ -131,6 +131,17 @@ export default function SettingsMenu({
               {t.settings.refresh}
             </button>
           )}
+          {/* Hash route: the page swaps without leaving the app (see App.tsx) */}
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              location.hash = "/faq";
+            }}
+            className="btn btn-ghost btn-sm w-full justify-start"
+          >
+            {t.settings.faq}
+          </button>
           <InstallButton
             className="btn btn-outline btn-sm w-full justify-start"
             onDone={() => setOpen(false)}

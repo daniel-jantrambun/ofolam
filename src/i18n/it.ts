@@ -3,7 +3,7 @@ import type { Dictionary } from "./en";
 export const it: Dictionary = {
   locale: "it-IT",
   theme: { label: "Tema", light: "Chiaro", dark: "Scuro", system: "Sistema" },
-  settings: { label: "Impostazioni", refresh: "Aggiorna da Strava" },
+  settings: { label: "Impostazioni", refresh: "Aggiorna da Strava", faq: "FAQ" },
   lang: { label: "Lingua", en: "English", fr: "Français", es: "Español", it: "Italiano", de: "Deutsch" },
   coffee: { label: "Offrimi un caffè" },
   install: {
@@ -110,7 +110,17 @@ export const it: Dictionary = {
     transparentHint:
       "Sfondo trasparente: copia lo sticker e incollalo sulla tua foto nell'editor delle storie.",
     choosePhoto: "Scegli una foto",
-    changePhoto: "Cambia foto",
+    addPhotos: "Aggiungi foto",
+    photoN: (i: number, n: number) => `Foto ${i} di ${n}`,
+    prevPhoto: "Foto precedente",
+    nextPhoto: "Foto successiva",
+    carouselHint:
+      "Carosello: la stessa card viene applicata a ogni foto. L'inquadratura si regola foto per foto; i testi e il percorso restano nella stessa posizione su tutte.",
+    carouselTip:
+      "Aggiungi altre foto per creare un carosello: la stessa card su ogni foto. Le foto non lasciano mai il tuo dispositivo.",
+    tooManyPhotos: (max: number) => `Un carosello può contenere fino a ${max} foto.`,
+    shareAll: (n: number) => `Condividi le ${n} immagini`,
+    downloadAll: (n: number) => `Scarica le ${n} immagini`,
     removePhoto: "Rimuovi",
     photoStaysLocal: "La foto non lascia mai il tuo dispositivo.",
     photoUnreadable: "Impossibile leggere questa immagine.",

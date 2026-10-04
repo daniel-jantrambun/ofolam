@@ -19,6 +19,10 @@ export type Format = "story" | "post" | "square" | "landscape";
 export type Background = "transparent" | "night" | "topo" | "photo" | "video" | "map";
 /** Decoded user photo. ImageBitmap keeps EXIF orientation; HTMLImageElement is the fallback. */
 export type Photo = ImageBitmap | HTMLImageElement;
+/** One background photo and how it is framed: focal point + zoom. */
+export type PhotoSlide = { id: string; photo: Photo; crop: Crop };
+/** Instagram accepts more, but past ten the editor strip and the export get unwieldy. */
+export const PHOTOS_MAX = 10;
 export type StatKey = "distance" | "time" | "pace" | "elevation" | "power" | "cadence";
 
 export const SIZES: Record<Format, { w: number; h: number }> = {
@@ -117,10 +121,13 @@ export type CardOptions = {
   legColors: (string | null)[];
   /** Multisport: draw the compact per-leg lines. */
   showLegs: boolean;
-  /** Background photo, used when `background === "photo"`. */
-  photo: Photo | null;
-  /** How the photo is framed: focal point + zoom. */
-  photoCrop: Crop;
+  /**
+   * Background photos, used when `background === "photo"`. Several photos make a carousel:
+   * the same card drawn once per photo, each with its own framing.
+   */
+  photos: PhotoSlide[];
+  /** Which photo is drawn. */
+  photoIndex: number;
   /**
    * Background video, used when `background === "video"`. The card only draws the veil and the
    * elements above it: the video plays underneath in the editor and is composited at export.
@@ -184,7 +191,7 @@ export type RenderHooks = {
 };
 
 /** Draws `img` like CSS `object-fit: cover`, framed by the crop (focal point + zoom). */
-function drawCover(
+export function drawCover(
   ctx: CanvasRenderingContext2D,
   img: Photo,
   w: number,
@@ -220,6 +227,10 @@ export async function loadPhoto(file: File): Promise<Photo> {
     URL.revokeObjectURL(url);
   }
 }
+
+/** The photo currently drawn, or null when none is loaded. */
+export const activeSlide = (o: Pick<CardOptions, "photos" | "photoIndex">): PhotoSlide | null =>
+  o.photos[Math.min(Math.max(0, o.photoIndex), o.photos.length - 1)] ?? null;
 
 export function releasePhoto(photo: Photo | null) {
   if (photo && "close" in photo) photo.close();
@@ -336,7 +347,8 @@ export function renderCard(
   const PL = Math.max(P, Math.round(opts.safeInsets.left * w));
   const PR = Math.max(P, Math.round(opts.safeInsets.right * w));
 
-  const hasPhoto = opts.background === "photo" && !!opts.photo;
+  const slide = opts.background === "photo" ? activeSlide(opts) : null;
+  const hasPhoto = !!slide;
   const hasVideo = opts.background === "video" && !!opts.video;
 
   ctx.clearRect(0, 0, w, h);
@@ -374,7 +386,13 @@ export function renderCard(
   // --- Title ---
   // `top` is where the automatic layout ends: it drives the route's automatic box even
   // when the title blocks are moved elsewhere.
-  let top = PT;
+  // With a top safe inset, a credits line placed at the top sits inside the visible area (see
+  // "Credits" below) instead of in the margin: the content starts under it, never behind it.
+  const creditsOnTop = opts.brandCorner === "tl" || opts.brandCorner === "tr";
+  // Without an inset the line lives in the margin; the content only steps down a little so the
+  // Strava logo keeps clear space around it.
+  const headerH = !creditsOnTop ? 0 : opts.safeInsets.top > 0 ? 52 + 20 : 28;
+  let top = PT + headerH;
   if (opts.showMeta) {
     const metaStyle = styleOf("meta");
     const k = sizeOf(metaStyle);
@@ -612,7 +630,7 @@ export function renderCard(
   // --- Background ---
   if (hasPhoto || hasVideo) {
     // A video is not drawn here: the canvas stays transparent under the veil (see CardOptions.video)
-    if (hasPhoto) drawCover(ctx, opts.photo!, w, h, opts.photoCrop);
+    if (slide) drawCover(ctx, slide.photo, w, h, slide.crop);
     // Dark veil at the top and bottom, where the title and the stats sit
     const veil = ctx.createLinearGradient(0, 0, 0, h);
     veil.addColorStop(0, "rgba(0,0,0,0.45)");

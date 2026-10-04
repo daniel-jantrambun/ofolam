@@ -124,6 +124,16 @@ Internet) and shows the Share → "Add to Home Screen" steps on iOS, where Safar
 It is hidden once the app runs installed, and in browsers that cannot install. The manifest
 screenshots in `public/screenshot-*.png` feed Chrome's richer install sheet.
 
+**Carousel.** The Photo background accepts several photos (up to 10, `PHOTOS_MAX`). `CardOptions`
+holds `photos` (each with its own crop) and `photoIndex`; texts, route and credits are shared, so
+the same card is drawn once per photo. Thumbnails and a pager under the preview switch photos.
+Share sends all the PNGs in one `navigator.share` call (Instagram offers them as one post) and
+the download entry saves them numbered (`ofolam-<id>-1.png`, ...).
+
+**FAQ.** `#/faq` (settings menu), content in `src/faq/`, one file per language: data retention,
+publishing options (story, sticker, carousel, video), the app. Keep its facts in sync with the
+privacy policy in `src/legal/`.
+
 **Providers.** Sign-in and activities go through a provider interface (`worker/providers/types.ts`);
 Strava is the only implementation today (`worker/providers/strava.ts`), Garmin & co can be added as
 new entries of the registry (`worker/providers/index.ts`). Athletes are keyed by `(provider, id)`, and
