@@ -1,11 +1,19 @@
-import { useI18n } from "../i18n";
+import { type Locale, useI18n } from "../i18n";
 import { type LegalPageKey, legalEn } from "../legal/en";
 import { legalFr } from "../legal/fr";
 import SettingsMenu from "./SettingsMenu";
 
 export type { LegalPageKey };
 
-const DOCS = { en: legalEn, fr: legalFr };
+// Legal texts exist in English and French only; the other languages fall back to English rather
+// than showing an unreviewed translation of a legal document.
+const DOCS: Record<Locale, typeof legalEn> = {
+  en: legalEn,
+  fr: legalFr,
+  es: legalEn,
+  it: legalEn,
+  de: legalEn,
+};
 
 /** Publisher identity, from the environment (see .env.example). */
 const NAME = import.meta.env.VITE_LEGAL_NAME || "[VITE_LEGAL_NAME]";

@@ -227,7 +227,7 @@ export function releasePhoto(photo: Photo | null) {
 
 /** Our own credit line on every picture, kept apart from the Strava mention. */
 /** Drawn as two runs: a regular prefix and a bold, slightly larger site name. */
-const SITE_CREDIT_PREFIX = "CREATED ON ";
+// "Made with" is the idiom for a tool credit; the prefix follows the UI language, the name never changes
 const SITE_CREDIT_NAME = "OFOLAM.COM";
 
 /** Default colors for the legs of a multisport event, by leg index. */
@@ -696,7 +696,8 @@ export function renderCard(
     const prefixFont = `400 26px ${BODY}`;
     const nameFont = `700 40px ${DISPLAY}`;
     ctx.font = prefixFont;
-    const prefixW = ctx.measureText(SITE_CREDIT_PREFIX).width;
+    const prefix = `${opts.t.card.madeWith} `;
+    const prefixW = ctx.measureText(prefix).width;
     ctx.font = nameFont;
     const nameW = ctx.measureText(SITE_CREDIT_NAME).width;
     const creditW = prefixW + nameW;
@@ -707,7 +708,7 @@ export function renderCard(
     ctx.fillStyle = opts.creditColor ?? bg.text;
     ctx.font = prefixFont;
     ctx.globalAlpha = 0.75;
-    ctx.fillText(SITE_CREDIT_PREFIX, creditX, creditBase);
+    ctx.fillText(prefix, creditX, creditBase);
     ctx.font = nameFont;
     ctx.globalAlpha = 1;
     ctx.fillText(SITE_CREDIT_NAME, creditX + prefixW, creditBase);

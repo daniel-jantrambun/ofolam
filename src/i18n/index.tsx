@@ -1,12 +1,15 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { de } from "./de";
 import { type Dictionary, en } from "./en";
+import { es } from "./es";
 import { fr } from "./fr";
+import { it } from "./it";
 
-export type Locale = "en" | "fr";
-export const LOCALES: Locale[] = ["en", "fr"];
+export type Locale = "en" | "fr" | "es" | "it" | "de";
+export const LOCALES: Locale[] = ["en", "fr", "es", "it", "de"];
 export const DEFAULT_LOCALE: Locale = "en";
 
-const DICTIONARIES: Record<Locale, Dictionary> = { en, fr };
+const DICTIONARIES: Record<Locale, Dictionary> = { en, fr, es, it, de };
 
 const COOKIE = "ofolam.lang";
 const COOKIE_MAX_AGE_S = 365 * 24 * 60 * 60;
@@ -25,21 +28,55 @@ function writeLocaleCookie(locale: Locale) {
 }
 
 /**
- * Strava does not expose a language preference, only the athlete's country.
- * Map French-speaking countries to `fr`, everything else to the default.
+ * Strava does not expose a language preference, only the athlete's country, as free text in the
+ * athlete's own language. Map the countries where one of our languages dominates; everything
+ * else gets the default. Switzerland stays French (the historical choice), the user can switch.
  */
-const FRENCH_COUNTRIES = new Set([
-  "france",
-  "belgium",
-  "belgique",
-  "switzerland",
-  "suisse",
-  "luxembourg",
-  "monaco",
-]);
+const COUNTRY_LOCALES: Record<string, Locale> = {
+  france: "fr",
+  belgium: "fr",
+  belgique: "fr",
+  switzerland: "fr",
+  suisse: "fr",
+  schweiz: "fr",
+  luxembourg: "fr",
+  monaco: "fr",
+  spain: "es",
+  españa: "es",
+  mexico: "es",
+  méxico: "es",
+  argentina: "es",
+  colombia: "es",
+  chile: "es",
+  peru: "es",
+  perú: "es",
+  venezuela: "es",
+  ecuador: "es",
+  uruguay: "es",
+  bolivia: "es",
+  paraguay: "es",
+  guatemala: "es",
+  "costa rica": "es",
+  panama: "es",
+  panamá: "es",
+  "dominican republic": "es",
+  "república dominicana": "es",
+  "el salvador": "es",
+  honduras: "es",
+  nicaragua: "es",
+  cuba: "es",
+  italy: "it",
+  italia: "it",
+  "san marino": "it",
+  germany: "de",
+  deutschland: "de",
+  austria: "de",
+  österreich: "de",
+  liechtenstein: "de",
+};
 export function localeFromCountry(country: string | null | undefined): Locale | null {
   if (!country) return null;
-  return FRENCH_COUNTRIES.has(country.trim().toLowerCase()) ? "fr" : DEFAULT_LOCALE;
+  return COUNTRY_LOCALES[country.trim().toLowerCase()] ?? DEFAULT_LOCALE;
 }
 
 type I18n = {
