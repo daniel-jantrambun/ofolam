@@ -124,11 +124,16 @@ Internet) and shows the Share → "Add to Home Screen" steps on iOS, where Safar
 It is hidden once the app runs installed, and in browsers that cannot install. The manifest
 screenshots in `public/screenshot-*.png` feed Chrome's richer install sheet.
 
-**Carousel.** The Photo background accepts several photos (up to 10, `PHOTOS_MAX`). `CardOptions`
-holds `photos` (each with its own crop) and `photoIndex`; texts, route and credits are shared, so
-the same card is drawn once per photo. Thumbnails and a pager under the preview switch photos.
-Share sends all the PNGs in one `navigator.share` call (Instagram offers them as one post) and
-the download entry saves them numbered (`ofolam-<id>-1.png`, ...).
+**Backgrounds and carousel.** Three backgrounds: Image, Video, Sticker (transparent). Image holds
+a list of one to ten slides (`CardOptions.slides`, `slideIndex`, `SLIDES_MAX`), each with a kind
+(photo, map, light, night) and its own settings: framing for a photo, style and intensity for a
+map, tint for a plain fill. A slide keeps the settings of every kind, so switching its kind back
+and forth loses nothing. Texts, route and credits are shared: the same card is drawn once per
+slide. With several slides, thumbnails and a pager under the preview switch between them, and
+dragging a thumbnail reorders them (pointer events, so it works with a finger too; Shift + arrow
+on the keyboard). Share sends all the PNGs in one `navigator.share` call (Instagram offers them
+as one post) and the download entry saves them numbered (`ofolam-<id>-1.png`, ...). The editor
+remembers the kind and settings of the slide last shown, never the photos.
 
 **FAQ.** `#/faq` (settings menu), content in `src/faq/`, one file per language: data retention,
 publishing options (story, sticker, carousel, video), the app. Keep its facts in sync with the

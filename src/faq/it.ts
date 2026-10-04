@@ -63,8 +63,8 @@ export const faqIt: FaqDoc = {
         {
           q: "Come creo un carosello?",
           a: [
-            "Scegli lo sfondo Foto e aggiungi più foto, fino a 10. La stessa card viene disegnata su ogni foto.",
-            "Con le frecce sotto l'anteprima passa da una foto all'altra per controllare che i testi si leggano bene su ciascuna. L'inquadratura si regola foto per foto; i testi e il percorso restano nella stessa posizione su tutte, quindi spostare un elemento lo sposta ovunque.",
+            "Scegli lo sfondo Immagine e aggiungi immagini, fino a 10: foto, una mappa o un colore a tinta unita chiaro o scuro. Gli stessi testi e lo stesso percorso vengono disegnati su ciascuna. Trascina le miniature per cambiarne l'ordine.",
+            "Con le frecce sotto l'anteprima passa da un'immagine all'altra per controllare che i testi si leggano bene su ciascuna. Ogni immagine mantiene le proprie impostazioni (inquadratura per una foto, stile per una mappa, colore per una tinta unita); i testi e il percorso restano nella stessa posizione su tutte, quindi spostare un elemento lo sposta ovunque.",
             "Poi Condividi invia tutte le immagini insieme e Instagram le propone come un unico post. «Scarica le immagini», nel menu, le salva tutte, numerate in ordine.",
           ],
         },

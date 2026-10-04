@@ -22,7 +22,6 @@ import {
   type CardOptions,
   type Corner,
   DEFAULT_TEXT_STYLE,
-  drawCover,
   ensureFonts,
   type Format,
   hasStat,
@@ -30,13 +29,15 @@ import {
   LEG_PALETTE,
   layerOrder,
   loadPhoto,
-  PHOTOS_MAX,
+  newSlide,
   type Photo,
-  type PhotoSlide,
   type RenderResult,
   releasePhoto,
   renderCard,
   SIZES,
+  SLIDES_MAX,
+  type Slide,
+  type SlideKind,
   type StatKey,
   TEXT_SIZE_MAX,
   TEXT_SIZE_MIN,
@@ -68,6 +69,7 @@ import CardOverlay, { type BoxChange, type OverlayItem } from "./CardOverlay";
 import ColorPicker from "./ColorPicker";
 import CornerPicker from "./CornerPicker";
 import PhotoCropper from "./PhotoCropper";
+import PhotoStrip from "./PhotoStrip";
 import SettingsMenu, { type MenuAction } from "./SettingsMenu";
 import TemplateStrip from "./TemplateStrip";
 import TextStylePanel from "./TextStylePanel";
@@ -79,13 +81,16 @@ export type EditorSubject = { kind: "single"; id: number } | { kind: "multi"; id
 type Props = { subject: EditorSubject; onBack: () => void; onSessionLost: () => void };
 
 const backgrounds = (t: Dictionary): { id: Background; label: string }[] => [
-  { id: "photo", label: t.editor.bgPhoto },
+  { id: "slides", label: t.editor.bgSlides },
   // Only offered where the browser can encode it (WebCodecs)
   ...(canExportVideo() ? [{ id: "video" as const, label: t.editor.bgVideo }] : []),
-  { id: "map", label: t.editor.bgMap },
   { id: "transparent", label: t.editor.bgTransparent },
-  { id: "night", label: t.editor.bgNight },
+];
+const slideKinds = (t: Dictionary): { id: SlideKind; label: string }[] => [
+  { id: "photo", label: t.editor.bgPhoto },
+  { id: "map", label: t.editor.bgMap },
   { id: "topo", label: t.editor.bgTopo },
+  { id: "night", label: t.editor.bgNight },
 ];
 const mapStyles = (t: Dictionary): { id: MapStyle; label: string }[] => [
   { id: "light", label: t.editor.mapLight },
@@ -106,6 +111,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const replaceFileRef = useRef<HTMLInputElement>(null);
   const videoFileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   // Preview playback: what the user asked for (play / pause button), and what the element is doing
@@ -119,7 +125,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
   const [fontsReady, setFontsReady] = useState(false);
   const [opts, setOpts] = useState<CardOptions>(() => ({
     format: "square" as Format,
-    background: resolved === "dark" ? "night" : ("topo" as Background),
+    background: "slides" as Background,
     routeColor: ROUTE_COLORS[0],
     stats: ["distance", "time", "pace"] as StatKey[],
     showName: true,
@@ -129,15 +135,12 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
     legColors: [],
     showLegs: true,
     titleText: null,
-    photos: [],
-    photoIndex: 0,
+    slides: [newSlide(resolved === "dark" ? "night" : "topo")],
+    slideIndex: 0,
     video: null,
     videoCrop: DEFAULT_CROP as Crop,
     videoTrim: { start: 0, end: 0 },
     videoMuted: false,
-    mapStyle: "bright" as MapStyle,
-    mapOpacity: 1,
-    bgTint: { topo: null, night: null },
     routeBox: null,
     texts: {},
     order: [] as LayerKey[],
@@ -425,7 +428,8 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
   // Carousel: one picture per photo, prepared shortly after the last edit so that sharing can
   // fire inside the tap (Safari refuses to share after an await)
   const slide = activeSlide(opts);
-  const isCarousel = opts.background === "photo" && opts.photos.length > 1;
+  const inSlides = opts.background === "slides";
+  const isCarousel = inSlides && opts.slides.length > 1;
   const slideBlobsRef = useRef<Blob[] | null>(null);
   useEffect(() => {
     void tileTick;
@@ -442,7 +446,51 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
     };
   }, [activity, opts, fontsReady, tileTick, isCarousel]);
   const slideName = (i: number) => `ofolam-${subjectKey}-${i + 1}.png`;
-  const selectPhoto = (i: number) => setOpts((o) => ({ ...o, photoIndex: i }));
+  const selectSlide = (i: number) => setOpts((o) => ({ ...o, slideIndex: i }));
+  /** Reorders the carousel; the slide being shown stays the one shown. */
+  const moveSlide = (from: number, to: number) =>
+    setOpts((o) => {
+      const activeId = activeSlide(o)?.id;
+      const next = [...o.slides];
+      const [moved] = next.splice(from, 1);
+      if (!moved) return o;
+      next.splice(to, 0, moved);
+      return {
+        ...o,
+        slides: next,
+        slideIndex: Math.max(
+          0,
+          next.findIndex((p) => p.id === activeId),
+        ),
+      };
+    });
+  /** Changes the slide being shown (its kind, or one of its own settings). */
+  const updateSlide = (patch: Partial<Slide>) =>
+    setOpts((o) => {
+      const at = Math.min(o.slideIndex, o.slides.length - 1);
+      return { ...o, slides: o.slides.map((sl, i) => (i === at ? { ...sl, ...patch } : sl)) };
+    });
+  /** Appends an empty photo slide and shows it: a carousel is most often made of photos. */
+  const addSlide = () =>
+    setOpts((o) =>
+      o.slides.length >= SLIDES_MAX
+        ? o
+        : {
+            ...o,
+            slides: [...o.slides, newSlide("photo")],
+            slideIndex: o.slides.length,
+          },
+    );
+  /** Removes the slide being shown; the list never gets empty. */
+  const removeSlide = () => {
+    setOpts((o) => {
+      if (o.slides.length <= 1) return o;
+      const at = Math.min(o.slideIndex, o.slides.length - 1);
+      const rest = o.slides.filter((_, i) => i !== at);
+      return { ...o, slides: rest, slideIndex: Math.min(at, rest.length - 1) };
+    });
+    setPhotoEditing(false);
+  };
 
   // Any edit makes the exported video stale: drop it, and stop an export in progress
   useEffect(() => {
@@ -487,57 +535,49 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
       .catch(() => setToast(t.editor.copyFailed));
   };
 
-  const onPickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  /**
+   * Photos picked for the carousel. `replace`: the single file takes the place of the photo
+   * being shown. Otherwise the first file fills the shown slide when it has no photo yet, and
+   * the others become new slides.
+   */
+  const onPickPhoto = async (e: React.ChangeEvent<HTMLInputElement>, replace: boolean) => {
     const files = Array.from(e.target.files ?? []);
     e.target.value = ""; // allows picking the same files again
     if (files.length === 0) return;
-    const room = PHOTOS_MAX - opts.photos.length;
-    const added: PhotoSlide[] = [];
+    const fills = replace || (slide?.kind === "photo" && !slide.photo);
+    const room = SLIDES_MAX - opts.slides.length + (fills ? 1 : 0);
+    const loaded: Photo[] = [];
     let unreadable = false;
     for (const file of files.slice(0, room)) {
       try {
         const photo = await loadPhoto(file);
         photos.current.add(photo);
-        added.push({ id: crypto.randomUUID(), photo, crop: DEFAULT_CROP });
+        loaded.push(photo);
       } catch {
         unreadable = true;
       }
     }
-    if (added.length > 0) {
-      // The first new photo becomes the one shown, ready to be framed
-      setOpts((o) => ({
-        ...o,
-        photos: [...o.photos, ...added],
-        photoIndex: o.photos.length,
-        background: "photo",
-      }));
+    if (loaded.length > 0) {
+      setOpts((o) => {
+        const at = Math.min(o.slideIndex, o.slides.length - 1);
+        const [first, ...others] = fills ? loaded : [null, ...loaded];
+        const slides = o.slides.map((sl, i) =>
+          i === at && first ? { ...sl, kind: "photo" as const, photo: first, crop: DEFAULT_CROP } : sl,
+        );
+        const added = others.map((photo) => newSlide("photo", { photo }));
+        return {
+          ...o,
+          background: "slides",
+          slides: [...slides, ...added],
+          // Shows the first new photo, ready to be framed
+          slideIndex: first ? at : o.slides.length,
+        };
+      });
       setPhotoEditing(true);
     }
     if (unreadable) setToast(t.editor.photoUnreadable);
-    else if (files.length > room) setToast(t.editor.tooManyPhotos(PHOTOS_MAX));
+    else if (files.length > room) setToast(t.editor.tooManyPhotos(SLIDES_MAX));
   };
-
-  /** Removes the photo being shown; the last one gone switches back to a plain background. */
-  const onRemovePhoto = () => {
-    setOpts((o) => {
-      const at = Math.min(o.photoIndex, o.photos.length - 1);
-      const rest = o.photos.filter((_, i) => i !== at);
-      return {
-        ...o,
-        photos: rest,
-        photoIndex: Math.max(0, Math.min(at, rest.length - 1)),
-        background: rest.length === 0 ? "night" : o.background,
-      };
-    });
-    setPhotoEditing(false);
-  };
-  const setPhotoCrop = (crop: Crop) =>
-    setOpts((o) => ({
-      ...o,
-      photos: o.photos.map((sl, i) =>
-        i === Math.min(o.photoIndex, o.photos.length - 1) ? { ...sl, crop } : sl,
-      ),
-    }));
 
   const onDownload = async () => {
     if (isVideo) return videoBlob && downloadBlob(videoBlob, filename);
@@ -575,7 +615,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
   };
 
   const onRemoveVideo = () => {
-    setOpts((o) => ({ ...o, video: null, background: "night" }));
+    setOpts((o) => ({ ...o, video: null, background: "slides" }));
     setVideoEditing(false);
   };
 
@@ -841,9 +881,9 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
         ? { label: t.editor.share, onClick: onShareVideo }
         : { label: t.editor.download, onClick: () => void onDownload() }
     : canShareFiles()
-      ? { label: isCarousel ? t.editor.shareAll(opts.photos.length) : t.editor.share, onClick: onShare }
+      ? { label: isCarousel ? t.editor.shareAll(opts.slides.length) : t.editor.share, onClick: onShare }
       : isCarousel
-        ? { label: t.editor.downloadAll(opts.photos.length), onClick: () => void onDownload() }
+        ? { label: t.editor.downloadAll(opts.slides.length), onClick: () => void onDownload() }
         : { label: t.editor.copyShort, onClick: onCopy };
   const ShareButton = ({ compact = false }: { compact?: boolean }) => (
     <button
@@ -876,7 +916,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
     // A video cannot go through the clipboard
     ...(canShareFiles() && !isVideo ? [{ label: t.editor.copy, onClick: onCopy, disabled: !activity }] : []),
     {
-      label: isCarousel ? t.editor.downloadAll(opts.photos.length) : t.editor.download,
+      label: isCarousel ? t.editor.downloadAll(opts.slides.length) : t.editor.download,
       onClick: () => void onDownload(),
       disabled: !activity || (isVideo && !videoBlob),
     },
@@ -993,7 +1033,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
             <div className="flex items-center justify-center gap-3">
               <button
                 type="button"
-                onClick={() => selectPhoto((opts.photoIndex - 1 + opts.photos.length) % opts.photos.length)}
+                onClick={() => selectSlide((opts.slideIndex - 1 + opts.slides.length) % opts.slides.length)}
                 aria-label={t.editor.prevPhoto}
                 title={t.editor.prevPhoto}
                 className="btn btn-outline btn-sm !px-3"
@@ -1001,11 +1041,11 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                 ‹
               </button>
               <span className="text-sm tabular-nums text-muted">
-                {t.editor.photoN(opts.photoIndex + 1, opts.photos.length)}
+                {t.editor.photoN(opts.slideIndex + 1, opts.slides.length)}
               </span>
               <button
                 type="button"
-                onClick={() => selectPhoto((opts.photoIndex + 1) % opts.photos.length)}
+                onClick={() => selectSlide((opts.slideIndex + 1) % opts.slides.length)}
                 aria-label={t.editor.nextPhoto}
                 title={t.editor.nextPhoto}
                 className="btn btn-outline btn-sm !px-3"
@@ -1084,99 +1124,148 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                 {opts.background === "transparent" && (
                   <p className="mt-2 text-sm text-muted">{t.editor.transparentHint}</p>
                 )}
-                {(opts.background === "topo" || opts.background === "night") && (
-                  <div className="mt-3">
-                    <ColorPicker
-                      presets={opts.background === "topo" ? LIGHT_TINTS : NIGHT_TINTS}
-                      value={
-                        opts.bgTint[opts.background] ??
-                        (opts.background === "topo" ? LIGHT_TINTS[0] : NIGHT_TINTS[0])
-                      }
-                      onChange={(c) => set("bgTint", { ...opts.bgTint, [opts.background]: c })}
-                    />
-                  </div>
-                )}
-                {opts.background === "map" && (
-                  <div className="mt-3 space-y-2">
-                    <Segmented
-                      options={mapStyles(t)}
-                      value={opts.mapStyle}
-                      onChange={(v) => set("mapStyle", v)}
-                    />
-                    <div>
-                      <div className="flex items-center justify-between text-sm">
-                        <label htmlFor="map-opacity" className="text-muted">
-                          {t.editor.mapOpacity}
-                        </label>
-                        <span className="text-muted">{Math.round(opts.mapOpacity * 100)}%</span>
-                      </div>
-                      <input
-                        id="map-opacity"
-                        type="range"
-                        min={0.2}
-                        max={1}
-                        step={0.05}
-                        value={opts.mapOpacity}
-                        onChange={(e) => set("mapOpacity", Number.parseFloat(e.target.value))}
-                        className="range w-full"
+                {inSlides && slide && (
+                  <div className="mt-3 space-y-4">
+                    {isCarousel && (
+                      <PhotoStrip
+                        slides={opts.slides}
+                        activeId={slide.id}
+                        target={SIZES[opts.format]}
+                        onSelect={selectSlide}
+                        onMove={moveSlide}
+                        label={t.editor.photoN}
                       />
-                    </div>
-                    <p className="text-sm text-muted">{hasRoute ? t.editor.mapHint : t.editor.mapNoRoute}</p>
-                  </div>
-                )}
-                {opts.background === "photo" && (
-                  <div className="mt-3 space-y-3">
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={onPickPhoto}
-                      className="sr-only"
-                    />
-                    {opts.photos.length > 0 && (
-                      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-                        {opts.photos.map((sl, i) => (
-                          <button
-                            type="button"
-                            key={sl.id}
-                            onClick={() => selectPhoto(i)}
-                            aria-label={t.editor.photoN(i + 1, opts.photos.length)}
-                            aria-pressed={sl === slide}
-                            className={`shrink-0 overflow-hidden rounded-lg border-2 ${sl === slide ? "border-primary" : "border-transparent opacity-70 hover:opacity-100"}`}
-                          >
-                            <PhotoThumb slide={sl} target={SIZES[opts.format]} />
-                          </button>
-                        ))}
-                      </div>
                     )}
                     <div className="flex flex-wrap items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => fileRef.current?.click()}
-                        disabled={opts.photos.length >= PHOTOS_MAX}
-                        className="btn btn-outline"
+                        onClick={addSlide}
+                        disabled={opts.slides.length >= SLIDES_MAX}
+                        className="btn btn-outline btn-sm"
                       >
-                        {opts.photos.length > 0 ? t.editor.addPhotos : t.editor.choosePhoto}
+                        + {t.editor.addSlide}
                       </button>
-                      {slide && !photoEditing && (
-                        <button type="button" onClick={() => setPhotoEditing(true)} className="link text-sm">
-                          {t.editor.cropEdit}
-                        </button>
-                      )}
-                      {slide && (
-                        <button type="button" onClick={onRemovePhoto} className="link text-sm">
-                          {t.editor.removePhoto}
+                      {isCarousel && (
+                        <button type="button" onClick={removeSlide} className="link text-sm">
+                          {t.editor.removeSlide}
                         </button>
                       )}
                     </div>
                     <p className="text-sm text-muted">
-                      {opts.photos.length > 1
-                        ? t.editor.carouselHint
-                        : opts.photos.length === 1
-                          ? t.editor.carouselTip
-                          : t.editor.photoStaysLocal}
+                      {isCarousel ? t.editor.carouselHint : t.editor.carouselTip}
                     </p>
+
+                    {/* The slide being shown: its type, then that type's own settings */}
+                    <div className="space-y-3 border-t border-border pt-4">
+                      <p className="field-label">
+                        {isCarousel
+                          ? `${t.editor.photoN(opts.slideIndex + 1, opts.slides.length)} · ${t.editor.slideType}`
+                          : t.editor.slideType}
+                      </p>
+                      <Segmented
+                        options={slideKinds(t)}
+                        value={slide.kind}
+                        onChange={(kind) => updateSlide({ kind })}
+                      />
+                      {(slide.kind === "topo" || slide.kind === "night") && (
+                        <ColorPicker
+                          presets={slide.kind === "topo" ? LIGHT_TINTS : NIGHT_TINTS}
+                          value={
+                            slide.tint[slide.kind] ??
+                            (slide.kind === "topo" ? LIGHT_TINTS[0] : NIGHT_TINTS[0])
+                          }
+                          onChange={(c) => updateSlide({ tint: { ...slide.tint, [slide.kind]: c } })}
+                        />
+                      )}
+                      {slide.kind === "map" && (
+                        <div className="space-y-2">
+                          <Segmented
+                            options={mapStyles(t)}
+                            value={slide.mapStyle}
+                            onChange={(mapStyle) => updateSlide({ mapStyle })}
+                          />
+                          <div>
+                            <div className="flex items-center justify-between text-sm">
+                              <label htmlFor="map-opacity" className="text-muted">
+                                {t.editor.mapOpacity}
+                              </label>
+                              <span className="text-muted">{Math.round(slide.mapOpacity * 100)}%</span>
+                            </div>
+                            <input
+                              id="map-opacity"
+                              type="range"
+                              min={0.2}
+                              max={1}
+                              step={0.05}
+                              value={slide.mapOpacity}
+                              onChange={(e) => updateSlide({ mapOpacity: Number.parseFloat(e.target.value) })}
+                              className="range w-full"
+                            />
+                          </div>
+                          <p className="text-sm text-muted">
+                            {hasRoute ? t.editor.mapHint : t.editor.mapNoRoute}
+                          </p>
+                        </div>
+                      )}
+                      {slide.kind === "photo" && (
+                        <div className="space-y-2">
+                          <input
+                            ref={fileRef}
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={(e) => onPickPhoto(e, false)}
+                            className="sr-only"
+                          />
+                          <input
+                            ref={replaceFileRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => onPickPhoto(e, true)}
+                            className="sr-only"
+                          />
+                          <div className="flex flex-wrap items-center gap-3">
+                            {slide.photo ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => replaceFileRef.current?.click()}
+                                  className="btn btn-outline"
+                                >
+                                  {t.editor.changePhoto}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => fileRef.current?.click()}
+                                  disabled={opts.slides.length >= SLIDES_MAX}
+                                  className="btn btn-outline"
+                                >
+                                  {t.editor.addPhotos}
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => fileRef.current?.click()}
+                                className="btn btn-outline"
+                              >
+                                {t.editor.choosePhoto}
+                              </button>
+                            )}
+                            {slide.photo && !photoEditing && (
+                              <button
+                                type="button"
+                                onClick={() => setPhotoEditing(true)}
+                                className="link text-sm"
+                              >
+                                {t.editor.cropEdit}
+                              </button>
+                            )}
+                          </div>
+                          {!slide.photo && <p className="text-sm text-muted">{t.editor.photoStaysLocal}</p>}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
                 {opts.background === "video" && (
@@ -1259,14 +1348,14 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                 </Field>
               )}
 
-              {opts.background === "photo" && slide && photoEditing && (
+              {inSlides && slide?.kind === "photo" && slide.photo && photoEditing && (
                 <Field label={t.editor.focalPoint}>
                   <PhotoCropper
                     key={slide.id}
                     photo={slide.photo}
                     target={SIZES[opts.format]}
                     value={slide.crop}
-                    onChange={setPhotoCrop}
+                    onChange={(crop) => updateSlide({ crop })}
                   />
                 </Field>
               )}
@@ -1587,14 +1676,11 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
  * (positions, photo, video, crop are dropped; text styles are kept without their positions).
  */
 const PREFS_KEY = "ofolam.editorPrefs";
+type SlidePrefs = Pick<Slide, "kind" | "mapStyle" | "mapOpacity" | "tint">;
 type EditorPrefs = Partial<
   Pick<
     CardOptions,
     | "format"
-    | "background"
-    | "mapStyle"
-    | "mapOpacity"
-    | "bgTint"
     | "routeColor"
     | "stats"
     | "showName"
@@ -1609,25 +1695,62 @@ type EditorPrefs = Partial<
     | "creditColor"
     | "texts"
   >
->;
-function loadPrefs(): EditorPrefs {
+> & {
+  /** "slides" or "transparent"; older versions stored the kind here ("night", "map", ...). */
+  background?: string;
+  /** The background shown when the editor was left (a photo is remembered as a plain one). */
+  slide?: SlidePrefs;
+  // Stored by versions that had a single background
+  mapStyle?: MapStyle;
+  mapOpacity?: number;
+  bgTint?: Slide["tint"];
+};
+const PLAIN_KINDS: SlideKind[] = ["map", "night", "topo"];
+function loadPrefs(): Partial<CardOptions> {
+  let stored: EditorPrefs;
   try {
     const raw = localStorage.getItem(PREFS_KEY);
-    return raw ? (JSON.parse(raw) as EditorPrefs) : {};
+    stored = raw ? (JSON.parse(raw) as EditorPrefs) : {};
   } catch {
     return {};
   }
+  const { background, slide, mapStyle, mapOpacity, bgTint, ...rest } = stored;
+  const out: Partial<CardOptions> = { ...rest };
+  if (background === "transparent") out.background = "transparent";
+  // Current format first, then the single-background format of earlier versions
+  const legacyKind = PLAIN_KINDS.find((k) => k === background);
+  if (slide && PLAIN_KINDS.includes(slide.kind)) {
+    out.slides = [
+      newSlide(slide.kind, { mapStyle: slide.mapStyle, mapOpacity: slide.mapOpacity, tint: slide.tint }),
+    ];
+  } else if (legacyKind) {
+    out.slides = [
+      newSlide(legacyKind, {
+        ...(mapStyle ? { mapStyle } : {}),
+        ...(mapOpacity !== undefined ? { mapOpacity } : {}),
+        ...(bgTint ? { tint: bgTint } : {}),
+      }),
+    ];
+  }
+  return out;
 }
 function savePrefs(o: CardOptions) {
   const texts: CardOptions["texts"] = {};
   for (const [k, v] of Object.entries(o.texts))
     if (v) texts[k as keyof CardOptions["texts"]] = { ...v, pos: null };
+  const shown = activeSlide(o);
   const prefs: EditorPrefs = {
     format: o.format,
-    background: o.background === "photo" || o.background === "video" ? "night" : o.background,
-    mapStyle: o.mapStyle,
-    mapOpacity: o.mapOpacity,
-    bgTint: o.bgTint,
+    // A video is tied to one activity: come back to the still background
+    background: o.background === "video" ? "slides" : o.background,
+    slide: shown
+      ? {
+          kind: shown.kind === "photo" ? "night" : shown.kind,
+          mapStyle: shown.mapStyle,
+          mapOpacity: shown.mapOpacity,
+          tint: shown.tint,
+        }
+      : undefined,
     routeColor: o.routeColor,
     stats: o.stats,
     showName: o.showName,
@@ -2038,26 +2161,10 @@ function useBalancedColumns(ref: React.RefObject<HTMLDivElement | null>): number
 /** One PNG per photo of the carousel: the same card, drawn over each photo in turn. */
 async function renderSlides(activity: CardActivity, opts: CardOptions): Promise<Blob[]> {
   const blobs: Blob[] = [];
-  for (let i = 0; i < opts.photos.length; i++) {
+  for (let i = 0; i < opts.slides.length; i++) {
     const off = document.createElement("canvas");
-    renderCard(off, activity, { ...opts, photoIndex: i });
+    renderCard(off, activity, { ...opts, slideIndex: i });
     blobs.push(await canvasToBlob(off));
   }
   return blobs;
-}
-
-const PHOTO_THUMB_H = 64;
-/** Small preview of one photo, framed like the card will frame it. */
-function PhotoThumb({ slide, target }: { slide: PhotoSlide; target: { w: number; h: number } }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  const width = Math.round((PHOTO_THUMB_H * target.w) / target.h);
-  useEffect(() => {
-    const canvas = ref.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    canvas.width = width * 2;
-    canvas.height = PHOTO_THUMB_H * 2;
-    drawCover(ctx, slide.photo, canvas.width, canvas.height, slide.crop);
-  }, [slide, width]);
-  return <canvas ref={ref} style={{ width, height: PHOTO_THUMB_H }} className="block" />;
 }

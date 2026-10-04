@@ -63,8 +63,8 @@ export const faqDe: FaqDoc = {
         {
           q: "Wie erstelle ich ein Karussell?",
           a: [
-            "Wähle den Hintergrund „Foto“ und füge mehrere Fotos hinzu, bis zu 10. Dieselbe Karte wird auf jedes Foto gezeichnet.",
-            "Mit den Pfeilen unter der Vorschau wechselst du von Foto zu Foto und prüfst, ob die Texte überall gut lesbar sind. Den Ausschnitt stellst du für jedes Foto einzeln ein; Texte und Strecke bleiben auf allen an derselben Stelle. Verschiebst du ein Element, verschiebt es sich also überall.",
+            "Wähle den Hintergrund „Bild“ und füge Bilder hinzu, bis zu 10: Fotos, eine Karte oder eine einfarbige helle oder dunkle Fläche. Dieselben Texte und dieselbe Strecke werden auf jedes gezeichnet. Ziehe die Miniaturen, um ihre Reihenfolge zu ändern.",
+            "Mit den Pfeilen unter der Vorschau wechselst du von einem Bild zum nächsten und prüfst, ob die Texte überall gut lesbar sind. Jedes Bild behält seine eigenen Einstellungen (Ausschnitt bei einem Foto, Stil bei einer Karte, Farbe bei einer einfarbigen Fläche); Texte und Strecke bleiben auf allen an derselben Stelle. Verschiebst du ein Element, verschiebt es sich also überall.",
             "Danach sendet Teilen alle Bilder auf einmal, und Instagram bietet sie als einen einzigen Beitrag an. „Bilder herunterladen“ im Menü speichert sie alle, der Reihe nach nummeriert.",
           ],
         },
