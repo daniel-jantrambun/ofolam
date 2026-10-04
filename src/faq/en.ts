@@ -74,8 +74,8 @@ export const faqEn: FaqDoc = {
         {
           q: "How do I make a carousel?",
           a: [
-            "Choose the Photo background and add several photos, up to 10. The same card is drawn on each photo.",
-            "Use the arrows under the preview to go through the photos and check how the texts read on each one. Framing is set photo by photo; texts and route keep the same place on all of them, so moving an element moves it everywhere.",
+            "Choose the Image background, then add images, up to 10: photos, a map, or a plain light or dark color. The same texts and route are drawn on each one. Drag the thumbnails to change their order.",
+            "Use the arrows under the preview to go through them and check how the texts read on each one. Every image keeps its own settings (framing for a photo, style for a map, color for a plain one); texts and route keep the same place on all of them, so moving an element moves it everywhere.",
             'Share then sends all the images at once, and Instagram offers them as a single post. "Download images" in the menu saves them all, numbered in order.',
           ],
         },

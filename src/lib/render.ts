@@ -16,13 +16,43 @@ import { drawMap, MAP_ATTRIBUTION, type MapStyle } from "./tiles";
 import type { VideoClip, VideoTrim } from "./video";
 
 export type Format = "story" | "post" | "square" | "landscape";
-export type Background = "transparent" | "night" | "topo" | "photo" | "video" | "map";
+/**
+ * What sits behind the card. "slides" is the still-image background: a list of one to ten
+ * slides (photo, map or plain fill), exported as one picture each. "video" and "transparent"
+ * (the sticker) stand apart.
+ */
+export type Background = "slides" | "video" | "transparent";
+export type SlideKind = "photo" | "map" | "night" | "topo";
 /** Decoded user photo. ImageBitmap keeps EXIF orientation; HTMLImageElement is the fallback. */
 export type Photo = ImageBitmap | HTMLImageElement;
-/** One background photo and how it is framed: focal point + zoom. */
-export type PhotoSlide = { id: string; photo: Photo; crop: Crop };
+/**
+ * One background of the "slides" list. Every slide carries the settings of all kinds, so
+ * switching its kind back and forth loses nothing; only those of its `kind` are used.
+ */
+export type Slide = {
+  id: string;
+  kind: SlideKind;
+  /** kind "photo": the picture (null until one is chosen: drawn as a night fill) and its framing. */
+  photo: Photo | null;
+  crop: Crop;
+  /** kind "map": basemap style and intensity, 0..1 (the tiles are veiled by 1 - intensity). */
+  mapStyle: MapStyle;
+  mapOpacity: number;
+  /** kinds "topo" and "night": custom fill; null = default tint. */
+  tint: { topo: string | null; night: string | null };
+};
 /** Instagram accepts more, but past ten the editor strip and the export get unwieldy. */
-export const PHOTOS_MAX = 10;
+export const SLIDES_MAX = 10;
+export const newSlide = (kind: SlideKind, from?: Partial<Slide>): Slide => ({
+  photo: null,
+  crop: DEFAULT_CROP,
+  mapStyle: "bright",
+  mapOpacity: 1,
+  tint: { topo: null, night: null },
+  ...from,
+  id: crypto.randomUUID(),
+  kind,
+});
 export type StatKey = "distance" | "time" | "pace" | "elevation" | "power" | "cadence";
 
 export const SIZES: Record<Format, { w: number; h: number }> = {
@@ -122,12 +152,12 @@ export type CardOptions = {
   /** Multisport: draw the compact per-leg lines. */
   showLegs: boolean;
   /**
-   * Background photos, used when `background === "photo"`. Several photos make a carousel:
-   * the same card drawn once per photo, each with its own framing.
+   * Backgrounds used when `background === "slides"`, never empty. Several slides make a
+   * carousel: the same card drawn once per slide.
    */
-  photos: PhotoSlide[];
-  /** Which photo is drawn. */
-  photoIndex: number;
+  slides: Slide[];
+  /** Which slide is drawn. */
+  slideIndex: number;
   /**
    * Background video, used when `background === "video"`. The card only draws the veil and the
    * elements above it: the video plays underneath in the editor and is composited at export.
@@ -137,12 +167,6 @@ export type CardOptions = {
   videoCrop: Crop;
   videoTrim: VideoTrim;
   videoMuted: boolean;
-  /** Basemap style, used when `background === "map"`. The map follows the route's box. */
-  mapStyle: MapStyle;
-  /** Map intensity, 0..1: the tiles are veiled with the background color by (1 - intensity). */
-  mapOpacity: number;
-  /** Custom fill for the "topo" and "night" backgrounds; null = default tint. */
-  bgTint: { topo: string | null; night: string | null };
   /** Where the route is drawn, as fractions of the card. `null` = automatic layout. */
   routeBox: RouteBox | null;
   /** Per-block text overrides; missing = defaults. */
@@ -167,7 +191,7 @@ export type CardOptions = {
   t: Dictionary;
 };
 
-const BACKGROUNDS: Record<Background, { fill: string | null; text: string }> = {
+const BACKGROUNDS: Record<SlideKind | "video" | "transparent", { fill: string | null; text: string }> = {
   transparent: { fill: null, text: palette.white },
   night: { fill: palette.night, text: palette.white },
   topo: { fill: palette.topo, text: palette.ink },
@@ -228,9 +252,16 @@ export async function loadPhoto(file: File): Promise<Photo> {
   }
 }
 
-/** The photo currently drawn, or null when none is loaded. */
-export const activeSlide = (o: Pick<CardOptions, "photos" | "photoIndex">): PhotoSlide | null =>
-  o.photos[Math.min(Math.max(0, o.photoIndex), o.photos.length - 1)] ?? null;
+/** The slide currently drawn. */
+export const activeSlide = (o: Pick<CardOptions, "slides" | "slideIndex">): Slide | null =>
+  o.slides[Math.min(Math.max(0, o.slideIndex), o.slides.length - 1)] ?? null;
+
+/** Flat color standing for a slide in a thumbnail (a photo draws itself instead). */
+export function slideSwatch(slide: Slide): string {
+  if (slide.kind === "map") return MAP_TEXT[slide.mapStyle].fill;
+  if (slide.kind === "photo") return palette.night;
+  return slide.tint[slide.kind] ?? BACKGROUNDS[slide.kind].fill ?? palette.night;
+}
 
 export function releasePhoto(photo: Photo | null) {
   if (photo && "close" in photo) photo.close();
@@ -332,14 +363,18 @@ export function renderCard(
   const ctx = canvas.getContext("2d")!;
   // A map needs a trace to follow: the activity's, or any leg's for a multisport event
   const hasTrace = !!a.polyline || !!a.legs?.some((l) => l.polyline);
-  const isMap = opts.background === "map" && hasTrace;
-  const tint =
-    opts.background === "topo" || opts.background === "night" ? opts.bgTint[opts.background] : null;
+  // What is actually behind the card: the active slide's kind, or video / transparent
+  const slide = opts.background === "slides" ? activeSlide(opts) : null;
+  const kind: SlideKind | "video" | "transparent" =
+    opts.background === "slides" ? (slide?.kind ?? "night") : opts.background;
+  const mapStyle = slide?.mapStyle ?? "bright";
+  const isMap = kind === "map" && hasTrace;
+  const tint = slide && (kind === "topo" || kind === "night") ? slide.tint[kind] : null;
   const bg = isMap
-    ? { fill: MAP_TEXT[opts.mapStyle].fill, text: MAP_TEXT[opts.mapStyle].text }
+    ? { fill: MAP_TEXT[mapStyle].fill, text: MAP_TEXT[mapStyle].text }
     : tint
       ? { fill: tint, text: contrastText(tint) }
-      : BACKGROUNDS[opts.background];
+      : BACKGROUNDS[kind];
   const P = 96;
   // Automatic layout margins: the base padding, pushed inwards by the safe insets
   const PT = Math.max(P, Math.round(opts.safeInsets.top * h));
@@ -347,17 +382,16 @@ export function renderCard(
   const PL = Math.max(P, Math.round(opts.safeInsets.left * w));
   const PR = Math.max(P, Math.round(opts.safeInsets.right * w));
 
-  const slide = opts.background === "photo" ? activeSlide(opts) : null;
-  const hasPhoto = !!slide;
-  const hasVideo = opts.background === "video" && !!opts.video;
+  const photo = kind === "photo" ? (slide?.photo ?? null) : null;
+  const hasPhoto = !!photo;
+  const hasVideo = kind === "video" && !!opts.video;
 
   ctx.clearRect(0, 0, w, h);
   // The background is drawn later (see "Fond"): a map needs the route's projection,
   // which depends on the layout measured below.
 
   // On a transparent, photo or dark map background, a soft shadow keeps the text readable
-  const needsShadow =
-    opts.background === "transparent" || hasPhoto || hasVideo || (isMap && opts.mapStyle === "dark");
+  const needsShadow = kind === "transparent" || hasPhoto || hasVideo || (isMap && mapStyle === "dark");
   const withShadow = (fn: () => void) => {
     ctx.save();
     if (needsShadow) {
@@ -630,7 +664,7 @@ export function renderCard(
   // --- Background ---
   if (hasPhoto || hasVideo) {
     // A video is not drawn here: the canvas stays transparent under the veil (see CardOptions.video)
-    if (slide) drawCover(ctx, slide.photo, w, h, slide.crop);
+    if (photo) drawCover(ctx, photo, w, h, slide?.crop);
     // Dark veil at the top and bottom, where the title and the stats sit
     const veil = ctx.createLinearGradient(0, 0, 0, h);
     veil.addColorStop(0, "rgba(0,0,0,0.45)");
@@ -643,9 +677,9 @@ export function renderCard(
     // Placeholder color under the tiles, visible until they arrive
     ctx.fillStyle = bg.fill!;
     ctx.fillRect(0, 0, w, h);
-    result.complete = drawMap(ctx, w, h, transform, opts.mapStyle, hooks.onTileLoaded);
+    result.complete = drawMap(ctx, w, h, transform, mapStyle, hooks.onTileLoaded);
     // Soften the map so the route and texts stand out: a veil of the base color on top
-    const veil = 1 - Math.min(1, Math.max(0, opts.mapOpacity));
+    const veil = 1 - Math.min(1, Math.max(0, slide?.mapOpacity ?? 1));
     if (veil > 0) {
       ctx.save();
       ctx.globalAlpha = veil;

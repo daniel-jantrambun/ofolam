@@ -63,8 +63,8 @@ export const faqFr: FaqDoc = {
         {
           q: "Comment créer un carrousel ?",
           a: [
-            "Choisis le fond Photo et ajoute plusieurs photos, jusqu'à 10. La même carte est dessinée sur chaque photo.",
-            "Avec les flèches sous l'aperçu, passe d'une photo à l'autre pour vérifier que les textes restent lisibles sur chacune. Le cadrage se règle photo par photo ; les textes et le tracé gardent la même place sur toutes, donc déplacer un élément le déplace partout.",
+            "Choisis le fond Image, puis ajoute des images, jusqu'à 10 : des photos, une carte, ou une couleur unie claire ou sombre. Les mêmes textes et le même tracé sont repris sur chacune. Fais glisser les vignettes pour changer leur ordre.",
+            "Avec les flèches sous l'aperçu, passe d'une image à l'autre pour vérifier que les textes restent lisibles sur chacune. Chaque image garde ses propres réglages (cadrage pour une photo, style pour une carte, couleur pour un fond uni) ; les textes et le tracé gardent la même place sur toutes, donc déplacer un élément le déplace partout.",
             "Partager envoie ensuite toutes les images d'un coup, et Instagram les propose comme une seule publication. « Télécharger les images », dans le menu, les enregistre toutes, numérotées dans l'ordre.",
           ],
         },

@@ -63,8 +63,8 @@ export const faqEs: FaqDoc = {
         {
           q: "¿Cómo creo un carrusel?",
           a: [
-            "Elige el fondo Foto y añade varias fotos, hasta 10. La misma tarjeta se dibuja sobre cada foto.",
-            "Con las flechas que hay bajo la vista previa, pasa de una foto a otra para comprobar que los textos se leen bien en todas. El encuadre se ajusta foto a foto; los textos y el recorrido mantienen la misma posición en todas, así que mover un elemento lo mueve en todas.",
+            "Elige el fondo Imagen y añade imágenes, hasta 10: fotos, un mapa o un color liso claro u oscuro. Los mismos textos y el mismo recorrido se dibujan sobre cada una. Arrastra las miniaturas para cambiar su orden.",
+            "Con las flechas que hay bajo la vista previa, pasa de una imagen a otra para comprobar que los textos se leen bien en todas. Cada imagen conserva sus propios ajustes (encuadre para una foto, estilo para un mapa, color para un fondo liso); los textos y el recorrido mantienen la misma posición en todas, así que mover un elemento lo mueve en todas.",
             "Después, Compartir envía todas las imágenes a la vez e Instagram las ofrece como una sola publicación. «Descargar las imágenes», en el menú, las guarda todas, numeradas en orden.",
           ],
         },
