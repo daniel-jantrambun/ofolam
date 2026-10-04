@@ -22,9 +22,12 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
       },
       manifest: {
+        id: "/",
         name: "Ofolam",
         short_name: "Ofolam",
         description: "Transforme tes activités Strava en visuels à partager.",
+        lang: "fr",
+        categories: ["sports", "photo"],
         theme_color: colors.secondary,
         background_color: colors.background,
         display: "standalone",
@@ -33,6 +36,11 @@ export default defineConfig({
           { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
           { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
           { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+        ],
+        // Chrome shows its richer install sheet when the manifest carries screenshots
+        screenshots: [
+          { src: "/screenshot-editor.png", sizes: "780x1688", type: "image/png", form_factor: "narrow" },
+          { src: "/screenshot-list.png", sizes: "780x1688", type: "image/png", form_factor: "narrow" },
         ],
       },
     }),

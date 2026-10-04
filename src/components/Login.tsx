@@ -1,5 +1,6 @@
 import { useI18n } from "../i18n";
 import { startLogin } from "../lib/api";
+import InstallButton from "./InstallButton";
 import { LegalLinks } from "./LegalPage";
 import SettingsMenu from "./SettingsMenu";
 
@@ -50,6 +51,7 @@ export default function Login({ notice }: { notice?: string }) {
         >
           <img src="/strava/connect-with-strava-orange.svg" alt="" className="h-12 w-auto" />
         </button>
+        <InstallButton className="btn btn-outline mx-auto flex" />
         <LegalLinks />
       </div>
     </main>

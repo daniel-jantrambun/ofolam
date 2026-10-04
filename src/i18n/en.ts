@@ -4,6 +4,14 @@ export const en = {
   settings: { label: "Settings", refresh: "Refresh from Strava" },
   lang: { label: "Language", en: "English", fr: "Français" },
   coffee: { label: "Buy me a coffee" },
+  install: {
+    label: "Install the app",
+    iosTitle: "Add Ofolam to your home screen",
+    iosStep1: "Tap the Share button in Safari's toolbar.",
+    iosStep2: 'Scroll down and tap "Add to Home Screen".',
+    iosStep3: 'Tap "Add". Ofolam opens like any app, full screen.',
+    gotIt: "Got it",
+  },
   login: {
     title: "Your ride, in one picture.",
     subtitle: "Pick a Strava activity, keep the stats that matter and share the visual as a story.",

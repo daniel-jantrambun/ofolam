@@ -6,6 +6,14 @@ export const fr: Dictionary = {
   settings: { label: "Réglages", refresh: "Actualiser depuis Strava" },
   lang: { label: "Langue", en: "English", fr: "Français" },
   coffee: { label: "Offre-moi un café" },
+  install: {
+    label: "Installer l'app",
+    iosTitle: "Ajouter Ofolam à l'écran d'accueil",
+    iosStep1: "Touche le bouton Partager dans la barre de Safari.",
+    iosStep2: "Fais défiler et touche « Sur l'écran d'accueil ».",
+    iosStep3: "Touche « Ajouter ». Ofolam s'ouvre comme une app, en plein écran.",
+    gotIt: "Compris",
+  },
   login: {
     title: "Ta sortie, en une image.",
     subtitle: "Choisis une activité Strava, garde les stats qui comptent et partage le visuel en story.",

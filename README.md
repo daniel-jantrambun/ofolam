@@ -118,6 +118,12 @@ Never edit a migration that has been applied: add a new one instead.
 
 ## How it works
 
+**Installing.** Ofolam is a PWA: one link, no store. The "Install the app" button (login page and
+settings menu) triggers the browser's own install prompt where there is one (Chrome, Edge, Samsung
+Internet) and shows the Share → "Add to Home Screen" steps on iOS, where Safari offers no prompt.
+It is hidden once the app runs installed, and in browsers that cannot install. The manifest
+screenshots in `public/screenshot-*.png` feed Chrome's richer install sheet.
+
 **Providers.** Sign-in and activities go through a provider interface (`worker/providers/types.ts`);
 Strava is the only implementation today (`worker/providers/strava.ts`), Garmin & co can be added as
 new entries of the registry (`worker/providers/index.ts`). Athletes are keyed by `(provider, id)`, and
