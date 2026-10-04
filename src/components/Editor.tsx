@@ -15,12 +15,14 @@ import { type Crop, DEFAULT_CROP } from "../lib/crop";
 import { sportLabel, usesPace } from "../lib/format";
 import { buildMeta } from "../lib/multisport";
 import {
+  activeSlide,
   type Background,
   type Box,
   type CardActivity,
   type CardOptions,
   type Corner,
   DEFAULT_TEXT_STYLE,
+  drawCover,
   ensureFonts,
   type Format,
   hasStat,
@@ -28,7 +30,9 @@ import {
   LEG_PALETTE,
   layerOrder,
   loadPhoto,
+  PHOTOS_MAX,
   type Photo,
+  type PhotoSlide,
   type RenderResult,
   releasePhoto,
   renderCard,
@@ -38,7 +42,7 @@ import {
   TEXT_SIZE_MIN,
   type TextKey,
 } from "../lib/render";
-import { canShareFiles, canvasToBlob, copyImage, downloadBlob, shareImage } from "../lib/share";
+import { canShareFiles, canvasToBlob, copyImage, downloadBlob, shareImage, shareImages } from "../lib/share";
 import {
   applyTemplate,
   BUILT_IN_TEMPLATES,
@@ -125,8 +129,8 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
     legColors: [],
     showLegs: true,
     titleText: null,
-    photo: null,
-    photoCrop: DEFAULT_CROP as Crop,
+    photos: [],
+    photoIndex: 0,
     video: null,
     videoCrop: DEFAULT_CROP as Crop,
     videoTrim: { start: 0, end: 0 },
@@ -418,6 +422,28 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
     canvasToBlob(canvas).then((b) => (blobRef.current = b));
   }, [activity, opts, fontsReady, tileTick]);
 
+  // Carousel: one picture per photo, prepared shortly after the last edit so that sharing can
+  // fire inside the tap (Safari refuses to share after an await)
+  const slide = activeSlide(opts);
+  const isCarousel = opts.background === "photo" && opts.photos.length > 1;
+  const slideBlobsRef = useRef<Blob[] | null>(null);
+  useEffect(() => {
+    void tileTick;
+    slideBlobsRef.current = null;
+    if (!isCarousel || !activity || !fontsReady) return;
+    let cancelled = false;
+    const id = setTimeout(async () => {
+      const blobs = await renderSlides(activity, opts);
+      if (!cancelled) slideBlobsRef.current = blobs;
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, [activity, opts, fontsReady, tileTick, isCarousel]);
+  const slideName = (i: number) => `ofolam-${subjectKey}-${i + 1}.png`;
+  const selectPhoto = (i: number) => setOpts((o) => ({ ...o, photoIndex: i }));
+
   // Any edit makes the exported video stale: drop it, and stop an export in progress
   useEffect(() => {
     void activity;
@@ -442,6 +468,14 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
     set("stats", opts.stats.includes(s) ? opts.stats.filter((x) => x !== s) : [...opts.stats, s].slice(0, 4));
 
   const onShare = () => {
+    if (isCarousel) {
+      const blobs = slideBlobsRef.current;
+      if (!blobs) return setToast(t.editor.preparing);
+      shareImages(blobs.map((blob, i) => ({ blob, filename: slideName(i) }))).catch(() =>
+        setToast(t.editor.shareFailed),
+      );
+      return;
+    }
     if (!blobRef.current) return setToast(t.editor.preparing);
     shareImage(blobRef.current, filename).catch(() => setToast(t.editor.shareFailed));
   };
@@ -454,26 +488,68 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
   };
 
   const onPickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allows picking the same file again
-    if (!file) return;
-    try {
-      const photo = await loadPhoto(file);
-      photos.current.add(photo);
-      setOpts((o) => ({ ...o, photo, photoCrop: DEFAULT_CROP, background: "photo" }));
-      setPhotoEditing(true);
-    } catch {
-      setToast(t.editor.photoUnreadable);
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ""; // allows picking the same files again
+    if (files.length === 0) return;
+    const room = PHOTOS_MAX - opts.photos.length;
+    const added: PhotoSlide[] = [];
+    let unreadable = false;
+    for (const file of files.slice(0, room)) {
+      try {
+        const photo = await loadPhoto(file);
+        photos.current.add(photo);
+        added.push({ id: crypto.randomUUID(), photo, crop: DEFAULT_CROP });
+      } catch {
+        unreadable = true;
+      }
     }
+    if (added.length > 0) {
+      // The first new photo becomes the one shown, ready to be framed
+      setOpts((o) => ({
+        ...o,
+        photos: [...o.photos, ...added],
+        photoIndex: o.photos.length,
+        background: "photo",
+      }));
+      setPhotoEditing(true);
+    }
+    if (unreadable) setToast(t.editor.photoUnreadable);
+    else if (files.length > room) setToast(t.editor.tooManyPhotos(PHOTOS_MAX));
   };
 
+  /** Removes the photo being shown; the last one gone switches back to a plain background. */
   const onRemovePhoto = () => {
-    setOpts((o) => ({ ...o, photo: null, background: "night" }));
+    setOpts((o) => {
+      const at = Math.min(o.photoIndex, o.photos.length - 1);
+      const rest = o.photos.filter((_, i) => i !== at);
+      return {
+        ...o,
+        photos: rest,
+        photoIndex: Math.max(0, Math.min(at, rest.length - 1)),
+        background: rest.length === 0 ? "night" : o.background,
+      };
+    });
     setPhotoEditing(false);
   };
+  const setPhotoCrop = (crop: Crop) =>
+    setOpts((o) => ({
+      ...o,
+      photos: o.photos.map((sl, i) =>
+        i === Math.min(o.photoIndex, o.photos.length - 1) ? { ...sl, crop } : sl,
+      ),
+    }));
 
   const onDownload = async () => {
     if (isVideo) return videoBlob && downloadBlob(videoBlob, filename);
+    if (isCarousel && activity) {
+      const blobs = slideBlobsRef.current ?? (await renderSlides(activity, opts));
+      for (const [i, blob] of blobs.entries()) {
+        downloadBlob(blob, slideName(i));
+        // Browsers drop downloads fired in the same tick
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      return;
+    }
     downloadBlob(blobRef.current ?? (await canvasToBlob(canvasRef.current!)), filename);
   };
 
@@ -765,8 +841,10 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
         ? { label: t.editor.share, onClick: onShareVideo }
         : { label: t.editor.download, onClick: () => void onDownload() }
     : canShareFiles()
-      ? { label: t.editor.share, onClick: onShare }
-      : { label: t.editor.copyShort, onClick: onCopy };
+      ? { label: isCarousel ? t.editor.shareAll(opts.photos.length) : t.editor.share, onClick: onShare }
+      : isCarousel
+        ? { label: t.editor.downloadAll(opts.photos.length), onClick: () => void onDownload() }
+        : { label: t.editor.copyShort, onClick: onCopy };
   const ShareButton = ({ compact = false }: { compact?: boolean }) => (
     <button
       type="button"
@@ -798,7 +876,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
     // A video cannot go through the clipboard
     ...(canShareFiles() && !isVideo ? [{ label: t.editor.copy, onClick: onCopy, disabled: !activity }] : []),
     {
-      label: t.editor.download,
+      label: isCarousel ? t.editor.downloadAll(opts.photos.length) : t.editor.download,
       onClick: () => void onDownload(),
       disabled: !activity || (isVideo && !videoBlob),
     },
@@ -832,80 +910,108 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
         {/* Desktop: vertical nav on the left */}
         <EditorNav tab={tab} onChange={setTab} orientation="vertical" className="hidden self-start lg:flex" />
 
-        <div
-          // Shrinks to the canvas so the overlay matches it; on phones the canvas is capped to
-          // half the screen so the controls stay visible without scrolling.
-          className={`relative mx-auto w-fit max-w-full self-start overflow-hidden rounded-[var(--radius-card)] border border-border shadow-[var(--shadow-card)] lg:mx-0 ${opts.background === "transparent" ? "checker" : ""} ${isVideo ? "bg-black" : ""}`}
-        >
-          {/* Video background: plays under the canvas, which only holds the veil and the elements.
+        <div className="flex min-w-0 flex-col items-center gap-3 self-start lg:items-stretch">
+          <div
+            // Shrinks to the canvas so the overlay matches it; on phones the canvas is capped to
+            // half the screen so the controls stay visible without scrolling.
+            className={`relative mx-auto w-fit max-w-full self-start overflow-hidden rounded-[var(--radius-card)] border border-border shadow-[var(--shadow-card)] lg:mx-0 ${opts.background === "transparent" ? "checker" : ""} ${isVideo ? "bg-black" : ""}`}
+          >
+            {/* Video background: plays under the canvas, which only holds the veil and the elements.
               object-fit/object-position frame it exactly like the export (focal point, no zoom). */}
-          {isVideo && opts.video && (
-            <video
-              ref={videoRef}
-              key={opts.video.url}
-              src={opts.video.url}
-              muted
-              playsInline
-              autoPlay
-              onPlay={() => setPreviewPlaying(true)}
-              onPause={() => setPreviewPlaying(false)}
-              onLoadedMetadata={(e) => (e.currentTarget.currentTime = opts.videoTrim.start)}
-              onTimeUpdate={onPreviewTime}
-              onEnded={onPreviewTime}
-              className="absolute inset-0 h-full w-full object-cover"
-              style={{ objectPosition: `${opts.videoCrop.x}% ${opts.videoCrop.y}%` }}
-            />
-          )}
-          <canvas
-            ref={canvasRef}
-            className="relative block h-auto max-h-[50vh] w-auto max-w-full lg:max-h-none lg:w-full"
-            role="img"
-            aria-label={activity ? t.editor.previewFor(activity.name) : t.editor.preview}
-          />
-          {!activity && !error && <p className="p-6 text-muted">{t.editor.loading}</p>}
-          {activity && SAFE_ZONE && opts.format === "story" && (
-            <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-              {/* Instagram story / reel UI: ~13% top, ~22% bottom, right-hand buttons column */}
-              <div
-                className="absolute rounded border border-dashed border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.28)]"
-                style={{
-                  left: `${SAFE_ZONE.left * 100}%`,
-                  top: `${SAFE_ZONE.top * 100}%`,
-                  right: `${SAFE_ZONE.right * 100}%`,
-                  bottom: `${SAFE_ZONE.bottom * 100}%`,
-                }}
+            {isVideo && opts.video && (
+              <video
+                ref={videoRef}
+                key={opts.video.url}
+                src={opts.video.url}
+                muted
+                playsInline
+                autoPlay
+                onPlay={() => setPreviewPlaying(true)}
+                onPause={() => setPreviewPlaying(false)}
+                onLoadedMetadata={(e) => (e.currentTarget.currentTime = opts.videoTrim.start)}
+                onTimeUpdate={onPreviewTime}
+                onEnded={onPreviewTime}
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{ objectPosition: `${opts.videoCrop.x}% ${opts.videoCrop.y}%` }}
               />
-              <span className="absolute left-2 top-2 rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                {t.editor.safeZones[safeZone as SafeZoneKind]}
-              </span>
-            </div>
-          )}
-          {activity && drawn && (
-            <CardOverlay
-              label={t.editor.preview}
-              items={overlayItems}
-              selected={selection}
-              onSelect={onSelectLayer}
-              onChange={onOverlayChange}
+            )}
+            <canvas
+              ref={canvasRef}
+              className="relative block h-auto max-h-[50vh] w-auto max-w-full lg:max-h-none lg:w-full"
+              role="img"
+              aria-label={activity ? t.editor.previewFor(activity.name) : t.editor.preview}
             />
-          )}
-          {exporting && (
-            <div
-              role="status"
-              className="absolute inset-x-0 bottom-0 z-10 space-y-2 bg-black/70 p-3 text-sm text-white"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span>{t.editor.creatingVideo(Math.round(exporting.progress * 100))}</span>
-                <button type="button" onClick={() => exporting.abort.abort()} className="link text-white">
-                  {t.editor.cancel}
-                </button>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-white/25">
+            {!activity && !error && <p className="p-6 text-muted">{t.editor.loading}</p>}
+            {activity && SAFE_ZONE && opts.format === "story" && (
+              <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+                {/* Instagram story / reel UI: ~13% top, ~22% bottom, right-hand buttons column */}
                 <div
-                  className="h-full rounded-full bg-primary transition-[width]"
-                  style={{ width: `${exporting.progress * 100}%` }}
+                  className="absolute rounded border border-dashed border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.28)]"
+                  style={{
+                    left: `${SAFE_ZONE.left * 100}%`,
+                    top: `${SAFE_ZONE.top * 100}%`,
+                    right: `${SAFE_ZONE.right * 100}%`,
+                    bottom: `${SAFE_ZONE.bottom * 100}%`,
+                  }}
                 />
+                <span className="absolute left-2 top-2 rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                  {t.editor.safeZones[safeZone as SafeZoneKind]}
+                </span>
               </div>
+            )}
+            {activity && drawn && (
+              <CardOverlay
+                label={t.editor.preview}
+                items={overlayItems}
+                selected={selection}
+                onSelect={onSelectLayer}
+                onChange={onOverlayChange}
+              />
+            )}
+            {exporting && (
+              <div
+                role="status"
+                className="absolute inset-x-0 bottom-0 z-10 space-y-2 bg-black/70 p-3 text-sm text-white"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span>{t.editor.creatingVideo(Math.round(exporting.progress * 100))}</span>
+                  <button type="button" onClick={() => exporting.abort.abort()} className="link text-white">
+                    {t.editor.cancel}
+                  </button>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-white/25">
+                  <div
+                    className="h-full rounded-full bg-primary transition-[width]"
+                    style={{ width: `${exporting.progress * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {isCarousel && (
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => selectPhoto((opts.photoIndex - 1 + opts.photos.length) % opts.photos.length)}
+                aria-label={t.editor.prevPhoto}
+                title={t.editor.prevPhoto}
+                className="btn btn-outline btn-sm !px-3"
+              >
+                ‹
+              </button>
+              <span className="text-sm tabular-nums text-muted">
+                {t.editor.photoN(opts.photoIndex + 1, opts.photos.length)}
+              </span>
+              <button
+                type="button"
+                onClick={() => selectPhoto((opts.photoIndex + 1) % opts.photos.length)}
+                aria-label={t.editor.nextPhoto}
+                title={t.editor.nextPhoto}
+                className="btn btn-outline btn-sm !px-3"
+              >
+                ›
+              </button>
             </div>
           )}
         </div>
@@ -1019,32 +1125,58 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                   </div>
                 )}
                 {opts.background === "photo" && (
-                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <div className="mt-3 space-y-3">
                     <input
                       ref={fileRef}
                       type="file"
                       accept="image/*"
+                      multiple
                       onChange={onPickPhoto}
                       className="sr-only"
                     />
-                    <button
-                      type="button"
-                      onClick={() => fileRef.current?.click()}
-                      className="btn btn-outline"
-                    >
-                      {opts.photo ? t.editor.changePhoto : t.editor.choosePhoto}
-                    </button>
-                    {opts.photo && !photoEditing && (
-                      <button type="button" onClick={() => setPhotoEditing(true)} className="link text-sm">
-                        {t.editor.cropEdit}
-                      </button>
+                    {opts.photos.length > 0 && (
+                      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                        {opts.photos.map((sl, i) => (
+                          <button
+                            type="button"
+                            key={sl.id}
+                            onClick={() => selectPhoto(i)}
+                            aria-label={t.editor.photoN(i + 1, opts.photos.length)}
+                            aria-pressed={sl === slide}
+                            className={`shrink-0 overflow-hidden rounded-lg border-2 ${sl === slide ? "border-primary" : "border-transparent opacity-70 hover:opacity-100"}`}
+                          >
+                            <PhotoThumb slide={sl} target={SIZES[opts.format]} />
+                          </button>
+                        ))}
+                      </div>
                     )}
-                    {opts.photo && (
-                      <button type="button" onClick={onRemovePhoto} className="link text-sm">
-                        {t.editor.removePhoto}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => fileRef.current?.click()}
+                        disabled={opts.photos.length >= PHOTOS_MAX}
+                        className="btn btn-outline"
+                      >
+                        {opts.photos.length > 0 ? t.editor.addPhotos : t.editor.choosePhoto}
                       </button>
-                    )}
-                    {!opts.photo && <p className="text-sm text-muted">{t.editor.photoStaysLocal}</p>}
+                      {slide && !photoEditing && (
+                        <button type="button" onClick={() => setPhotoEditing(true)} className="link text-sm">
+                          {t.editor.cropEdit}
+                        </button>
+                      )}
+                      {slide && (
+                        <button type="button" onClick={onRemovePhoto} className="link text-sm">
+                          {t.editor.removePhoto}
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted">
+                      {opts.photos.length > 1
+                        ? t.editor.carouselHint
+                        : opts.photos.length === 1
+                          ? t.editor.carouselTip
+                          : t.editor.photoStaysLocal}
+                    </p>
                   </div>
                 )}
                 {opts.background === "video" && (
@@ -1127,13 +1259,14 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                 </Field>
               )}
 
-              {opts.background === "photo" && opts.photo && photoEditing && (
+              {opts.background === "photo" && slide && photoEditing && (
                 <Field label={t.editor.focalPoint}>
                   <PhotoCropper
-                    photo={opts.photo}
+                    key={slide.id}
+                    photo={slide.photo}
                     target={SIZES[opts.format]}
-                    value={opts.photoCrop}
-                    onChange={(photoCrop) => set("photoCrop", photoCrop)}
+                    value={slide.crop}
+                    onChange={setPhotoCrop}
                   />
                 </Field>
               )}
@@ -1900,4 +2033,31 @@ function useBalancedColumns(ref: React.RefObject<HTMLDivElement | null>): number
     return () => observer.disconnect();
   });
   return cols;
+}
+
+/** One PNG per photo of the carousel: the same card, drawn over each photo in turn. */
+async function renderSlides(activity: CardActivity, opts: CardOptions): Promise<Blob[]> {
+  const blobs: Blob[] = [];
+  for (let i = 0; i < opts.photos.length; i++) {
+    const off = document.createElement("canvas");
+    renderCard(off, activity, { ...opts, photoIndex: i });
+    blobs.push(await canvasToBlob(off));
+  }
+  return blobs;
+}
+
+const PHOTO_THUMB_H = 64;
+/** Small preview of one photo, framed like the card will frame it. */
+function PhotoThumb({ slide, target }: { slide: PhotoSlide; target: { w: number; h: number } }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const width = Math.round((PHOTO_THUMB_H * target.w) / target.h);
+  useEffect(() => {
+    const canvas = ref.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    canvas.width = width * 2;
+    canvas.height = PHOTO_THUMB_H * 2;
+    drawCover(ctx, slide.photo, canvas.width, canvas.height, slide.crop);
+  }, [slide, width]);
+  return <canvas ref={ref} style={{ width, height: PHOTO_THUMB_H }} className="block" />;
 }

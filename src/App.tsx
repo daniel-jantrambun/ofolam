@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import ActivityList from "./components/ActivityList";
 import Editor, { type EditorSubject } from "./components/Editor";
+import FaqPage, { FAQ_HREF } from "./components/FaqPage";
 import LegalPage, { LEGAL_PAGES, type LegalPageKey } from "./components/LegalPage";
 import Login from "./components/Login";
 import { localeFromCountry, useI18n } from "./i18n";
@@ -16,16 +17,20 @@ function legalPageFromHash(): LegalPageKey | null {
   return (LEGAL_PAGES as string[]).includes(key) ? (key as LegalPageKey) : null;
 }
 
+const isFaqHash = () => location.hash === FAQ_HREF;
+
 export default function App() {
   const { t, suggestLocale } = useI18n();
   const [session, setSession] = useState(getSession);
   const [selected, setSelected] = useState<EditorSubject | null>(null);
   const [authParam] = useState(() => new URLSearchParams(location.search).get("auth"));
   const [legalPage, setLegalPage] = useState(legalPageFromHash);
+  const [faq, setFaq] = useState(isFaqHash);
 
   useEffect(() => {
     const onHash = () => {
       setLegalPage(legalPageFromHash());
+      setFaq(isFaqHash());
       window.scrollTo(0, 0);
     };
     window.addEventListener("hashchange", onHash);
@@ -55,6 +60,7 @@ export default function App() {
   }, [session, suggestLocale]);
 
   if (legalPage) return <LegalPage page={legalPage} />;
+  if (faq) return <FaqPage />;
 
   if (!session) {
     // Callback opened in the iOS in-app browser: the session is waiting for the PWA

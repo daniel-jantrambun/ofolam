@@ -3,7 +3,7 @@ import type { Dictionary } from "./en";
 export const de: Dictionary = {
   locale: "de-DE",
   theme: { label: "Design", light: "Hell", dark: "Dunkel", system: "System" },
-  settings: { label: "Einstellungen", refresh: "Von Strava aktualisieren" },
+  settings: { label: "Einstellungen", refresh: "Von Strava aktualisieren", faq: "FAQ" },
   lang: { label: "Sprache", en: "English", fr: "Français", es: "Español", it: "Italiano", de: "Deutsch" },
   coffee: { label: "Spendier mir einen Kaffee" },
   install: {
@@ -109,7 +109,17 @@ export const de: Dictionary = {
     transparentHint:
       "Transparenter Hintergrund: Kopiere den Sticker und füge ihn im Story-Editor über deinem Foto ein.",
     choosePhoto: "Foto auswählen",
-    changePhoto: "Foto ändern",
+    addPhotos: "Fotos hinzufügen",
+    photoN: (i: number, n: number) => `Foto ${i} von ${n}`,
+    prevPhoto: "Vorheriges Foto",
+    nextPhoto: "Nächstes Foto",
+    carouselHint:
+      "Karussell: Jedes Foto bekommt dieselbe Karte. Den Ausschnitt stellst du für jedes Foto einzeln ein; Texte und Strecke bleiben auf allen an derselben Stelle.",
+    carouselTip:
+      "Füge weitere Fotos hinzu, um ein Karussell zu erstellen: dieselbe Karte auf jedem Foto. Die Fotos verlassen dein Gerät nie.",
+    tooManyPhotos: (max: number) => `Ein Karussell fasst bis zu ${max} Fotos.`,
+    shareAll: (n: number) => `${n} Bilder teilen`,
+    downloadAll: (n: number) => `${n} Bilder herunterladen`,
     removePhoto: "Entfernen",
     photoStaysLocal: "Das Foto verlässt dein Gerät nie.",
     photoUnreadable: "Dieses Bild konnte nicht gelesen werden.",

@@ -1,7 +1,7 @@
 export const en = {
   locale: "en-US",
   theme: { label: "Theme", light: "Light", dark: "Dark", system: "System" },
-  settings: { label: "Settings", refresh: "Refresh from Strava" },
+  settings: { label: "Settings", refresh: "Refresh from Strava", faq: "FAQ" },
   lang: { label: "Language", en: "English", fr: "Français", es: "Español", it: "Italiano", de: "Deutsch" },
   coffee: { label: "Buy me a coffee" },
   install: {
@@ -107,7 +107,17 @@ export const en = {
     transparentHint:
       "Transparent background: copy the sticker and paste it over your photo in the story editor.",
     choosePhoto: "Choose a photo",
-    changePhoto: "Change photo",
+    addPhotos: "Add photos",
+    photoN: (i: number, n: number) => `Photo ${i} of ${n}`,
+    prevPhoto: "Previous photo",
+    nextPhoto: "Next photo",
+    carouselHint:
+      "Carousel: every photo gets the same card. Frame each photo on its own; texts and route keep the same place on all of them.",
+    carouselTip:
+      "Add more photos to make a carousel: the same card on each photo. Photos never leave your device.",
+    tooManyPhotos: (max: number) => `A carousel holds up to ${max} photos.`,
+    shareAll: (n: number) => `Share ${n} images`,
+    downloadAll: (n: number) => `Download ${n} images`,
     removePhoto: "Remove",
     photoStaysLocal: "The photo never leaves your device.",
     photoUnreadable: "This image could not be read.",

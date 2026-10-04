@@ -3,7 +3,7 @@ import type { Dictionary } from "./en";
 export const fr: Dictionary = {
   locale: "fr-FR",
   theme: { label: "Thème", light: "Clair", dark: "Sombre", system: "Système" },
-  settings: { label: "Réglages", refresh: "Actualiser depuis Strava" },
+  settings: { label: "Réglages", refresh: "Actualiser depuis Strava", faq: "FAQ" },
   lang: { label: "Langue", en: "English", fr: "Français", es: "Español", it: "Italiano", de: "Deutsch" },
   coffee: { label: "Offre-moi un café" },
   install: {
@@ -109,7 +109,17 @@ export const fr: Dictionary = {
     mapNoRoute: "Cette activité n'a pas de tracé, impossible d'afficher une carte.",
     transparentHint: "Fond transparent : copie le sticker et colle-le sur ta photo dans l'éditeur de story.",
     choosePhoto: "Choisir une photo",
-    changePhoto: "Changer la photo",
+    addPhotos: "Ajouter des photos",
+    photoN: (i: number, n: number) => `Photo ${i} sur ${n}`,
+    prevPhoto: "Photo précédente",
+    nextPhoto: "Photo suivante",
+    carouselHint:
+      "Carrousel : la même carte est posée sur chaque photo. Le cadrage se règle photo par photo ; les textes et le tracé gardent la même place sur toutes.",
+    carouselTip:
+      "Ajoute d'autres photos pour créer un carrousel : la même carte sur chaque photo. Les photos restent sur ton appareil.",
+    tooManyPhotos: (max: number) => `Un carrousel contient ${max} photos au maximum.`,
+    shareAll: (n: number) => `Partager les ${n} images`,
+    downloadAll: (n: number) => `Télécharger les ${n} images`,
     removePhoto: "Retirer",
     photoStaysLocal: "La photo reste sur ton appareil.",
     photoUnreadable: "Impossible de lire cette image.",
