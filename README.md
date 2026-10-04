@@ -118,6 +118,12 @@ Never edit a migration that has been applied: add a new one instead.
 
 ## How it works
 
+**Installing.** Ofolam is a PWA: one link, no store. The "Install the app" button (login page and
+settings menu) triggers the browser's own install prompt where there is one (Chrome, Edge, Samsung
+Internet) and shows the Share → "Add to Home Screen" steps on iOS, where Safari offers no prompt.
+It is hidden once the app runs installed, and in browsers that cannot install. The manifest
+screenshots in `public/screenshot-*.png` feed Chrome's richer install sheet.
+
 **Providers.** Sign-in and activities go through a provider interface (`worker/providers/types.ts`);
 Strava is the only implementation today (`worker/providers/strava.ts`), Garmin & co can be added as
 new entries of the registry (`worker/providers/index.ts`). Athletes are keyed by `(provider, id)`, and
@@ -158,6 +164,15 @@ single row in the list, unfoldable into its legs, labelled triathlon / duathlon 
 aquabike from the sport sequence. Its card draws every leg's route in its own color on a shared
 projection, the total time (transitions included) and one compact line per leg; distance, pace and
 elevation are not shown for an event. Each leg can still be opened on its own.
+
+**Templates.** The "Fond" tab starts with a strip of live thumbnails: the current activity drawn
+with each template. Built-in templates ship with the app (`src/lib/templates.ts`); personal ones are
+saved in D1 per athlete (`templates` table, `/api/templates`, 20 max) and cached locally. A template
+is a layout: elements, positions, styles. The format and the background are chosen separately and
+never change when a template is applied; the photo crop and a custom title are not part of it either.
+The strip shows the base layouts and the personal templates; a "More" button opens a dialog with
+variations of the base layouts (route color picked up by the stats, text sizes, fonts), generated in
+`src/lib/templates.ts`.
 
 **Map background.** The "Map" background draws raster tiles in the exact projection of the route
 (`src/lib/tiles.ts`): the map follows the route's box. Default provider: Stadia Maps (OpenStreetMap

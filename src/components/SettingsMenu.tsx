@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { LangSwitcher, useI18n } from "../i18n";
 import { ThemeSwitcher } from "../theme";
+import InstallButton from "./InstallButton";
 
 /**
  * Theme + language switchers behind a burger button that opens a small popover.
@@ -130,6 +131,10 @@ export default function SettingsMenu({
               {t.settings.refresh}
             </button>
           )}
+          <InstallButton
+            className="btn btn-outline btn-sm w-full justify-start"
+            onDone={() => setOpen(false)}
+          />
           <div>
             <p className="field-label">{t.theme.label}</p>
             <ThemeSwitcher onPick={() => setOpen(false)} />
