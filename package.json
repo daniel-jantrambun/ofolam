@@ -1,7 +1,7 @@
 {
   "name": "ofolam",
   "private": true,
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "packageManager": "pnpm@12.6.0",
   "scripts": {

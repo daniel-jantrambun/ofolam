@@ -191,3 +191,9 @@ src/i18n/      dictionaries and language switcher
 src/components Login, ActivityList, Editor and its panels (overlay, cropper, color/text style…)
 migrations/    D1 schema, one SQL file per migration
 ```
+
+## License
+
+GNU AGPL v3 (`LICENSE`). You may use, modify and self-host Ofolam, including commercially, but any
+modified version you run as a service must make its complete source code available to its users
+under the same license. "Ofolam" and its logo are not covered by this license.

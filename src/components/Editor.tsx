@@ -1473,7 +1473,7 @@ function EditorNav({
             key={item.id}
             onClick={() => onChange(item.id)}
             aria-current={on ? "page" : undefined}
-            className={`flex flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs font-medium transition-colors ${vertical ? "w-20" : "flex-1"} ${on ? "bg-secondary text-secondary-foreground" : "text-muted hover:bg-surface-2 hover:text-foreground"}`}
+            className={`flex flex-col items-center gap-1 rounded-t-xl md:rounded-xl px-3 py-2 text-xs font-medium transition-colors ${vertical ? "w-20" : "flex-1"} ${on ? "bg-secondary text-secondary-foreground" : "text-muted hover:bg-surface-2 hover:text-foreground"}`}
           >
             <svg
               viewBox="0 0 24 24"

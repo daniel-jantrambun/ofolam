@@ -113,7 +113,12 @@ export const legalEn: LegalContent = {
         heading: "Hosting",
         paragraphs: ["Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, United States."],
       },
-      { heading: "Source code", paragraphs: ["Ofolam is open source, under the MIT license."] },
+      {
+        heading: "Source code",
+        paragraphs: [
+          "Ofolam is open source, under the GNU AGPL v3 license: anyone running a modified version as a service must publish its source code.",
+        ],
+      },
     ],
   },
 };
