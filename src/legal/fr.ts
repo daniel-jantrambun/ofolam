@@ -103,7 +103,12 @@ export const legalFr: LegalContent = {
         heading: "Hébergement",
         paragraphs: ["Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, États-Unis."],
       },
-      { heading: "Code source", paragraphs: ["Ofolam est un logiciel libre, sous licence MIT."] },
+      {
+        heading: "Code source",
+        paragraphs: [
+          "Ofolam est un logiciel libre, sous licence GNU AGPL v3 : quiconque exploite une version modifiée en ligne doit en publier le code source.",
+        ],
+      },
     ],
   },
 };
