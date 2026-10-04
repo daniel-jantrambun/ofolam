@@ -4,7 +4,7 @@ export const fr: Dictionary = {
   locale: "fr-FR",
   theme: { label: "Thème", light: "Clair", dark: "Sombre", system: "Système" },
   settings: { label: "Réglages", refresh: "Actualiser depuis Strava" },
-  lang: { label: "Langue", en: "English", fr: "Français" },
+  lang: { label: "Langue", en: "English", fr: "Français", es: "Español", it: "Italiano", de: "Deutsch" },
   coffee: { label: "Offre-moi un café" },
   install: {
     label: "Installer l'app",
@@ -155,7 +155,7 @@ export const fr: Dictionary = {
     align: "Aligner",
     centerH: "Centrer horizontalement",
     centerV: "Centrer verticalement",
-    creditColor: "Couleur de « Created on ofolam.com »",
+    creditColor: "Couleur de « Créé avec ofolam.com »",
     creditHint: "Le crédit suit le logo Strava : il reste toujours du côté opposé, sur le même bord.",
     brandCorner: "Position de « Powered by Strava »",
     brandDragged: "Déplacée à la main : choisis un coin pour la remettre en place.",
@@ -199,6 +199,10 @@ export const fr: Dictionary = {
     cancel: "Annuler",
     videoReady: "Vidéo prête. Touche Partager pour la publier.",
     videoFailed: "Impossible de créer la vidéo sur cet appareil.",
+  },
+  card: {
+    /** Credit prefix drawn on the card, before the site name. Uppercase: it is drawn as-is. */
+    madeWith: "CRÉÉ AVEC",
   },
   stats: {
     distance: "Distance",

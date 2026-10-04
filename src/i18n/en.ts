@@ -2,7 +2,7 @@ export const en = {
   locale: "en-US",
   theme: { label: "Theme", light: "Light", dark: "Dark", system: "System" },
   settings: { label: "Settings", refresh: "Refresh from Strava" },
-  lang: { label: "Language", en: "English", fr: "Français" },
+  lang: { label: "Language", en: "English", fr: "Français", es: "Español", it: "Italiano", de: "Deutsch" },
   coffee: { label: "Buy me a coffee" },
   install: {
     label: "Install the app",
@@ -153,7 +153,7 @@ export const en = {
     align: "Align",
     centerH: "Center horizontally",
     centerV: "Center vertically",
-    creditColor: "“Created on ofolam.com” color",
+    creditColor: "“Made with ofolam.com” color",
     creditHint: "The credit follows the Strava logo: it always sits on the opposite side of the same edge.",
     brandCorner: "“Powered by Strava” position",
     brandDragged: "Moved by hand: pick a corner to snap it back.",
@@ -197,6 +197,10 @@ export const en = {
     cancel: "Cancel",
     videoReady: "Video ready. Tap Share to post it.",
     videoFailed: "The video could not be created on this device.",
+  },
+  card: {
+    /** Credit prefix drawn on the card, before the site name. Uppercase: it is drawn as-is. */
+    madeWith: "MADE WITH",
   },
   stats: {
     distance: "Distance",

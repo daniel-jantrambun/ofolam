@@ -143,7 +143,7 @@ to stay under the API quotas (200 requests / 15 min, 2,000 / day, across all use
 The PWA also keeps the first page and every opened activity in localStorage: they show up
 instantly on launch, then refresh in the background (`src/lib/cache.ts`).
 
-**Languages.** English and French (`src/i18n/`). Priority: `ofolam.lang` cookie (switcher) > country
+**Languages.** English, French, Spanish, Italian and German (`src/i18n/`, one file per language typed against `en.ts`). The legal pages exist in English and French only; the other languages show them in English. Priority: `ofolam.lang` cookie (switcher) > country
 of the Strava profile (the API does not expose a language, so `fr` is inferred from French-speaking
 countries) > English. Worker errors are codes (`rate_limited`, `invalid_session`, …) translated by
 the PWA.
