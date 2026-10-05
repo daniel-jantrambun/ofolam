@@ -111,6 +111,13 @@ export const faqDe: FaqDoc = {
           ],
         },
         {
+          q: "Mir ist ein Fehler in einer Übersetzung aufgefallen. Was kann ich tun?",
+          a: [
+            "Danke für den Hinweis! Schreib an {email} und nenne den fehlerhaften Text und die Sprache, dann korrigieren wir ihn.",
+            "Wenn du mutig bist, kannst du ihn selbst korrigieren: Die Texte liegen in den Ordnern src/i18n und src/faq des Projekts auf GitHub (daniel-jantrambun/ofolam). Öffne einen Pull Request, und wir übernehmen ihn.",
+          ],
+        },
+        {
           q: "Ist Ofolam kostenlos?",
           coffee: "Wenn es dir gefällt, kannst du das Projekt unterstützen:",
           a: [
