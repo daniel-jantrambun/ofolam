@@ -13,6 +13,7 @@ export type TemplateOptions = Partial<
     CardOptions,
     | "routeColor"
     | "routeBox"
+    | "mapRouteBox"
     | "stats"
     | "showName"
     | "showMeta"
@@ -43,6 +44,7 @@ export type Template = {
 const STORED_KEYS: (keyof TemplateOptions)[] = [
   "routeColor",
   "routeBox",
+  "mapRouteBox",
   "stats",
   "showName",
   "showMeta",
@@ -73,6 +75,7 @@ export function applyTemplate(o: CardOptions, tpl: TemplateOptions): CardOptions
   // so that a template fully describes the look (a missing position means "automatic")
   const defaults: TemplateOptions = {
     routeBox: null,
+    mapRouteBox: null,
     brandPos: null,
     creditPos: null,
     texts: {},
