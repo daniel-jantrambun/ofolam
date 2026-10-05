@@ -57,7 +57,7 @@ export default function TextStylePanel({ value, onChange }: Props) {
         <p className="field-label">{t.editor.color}</p>
         <ColorPicker value={value.color} onChange={(c) => set("color", c)} allowAuto />
       </div>
-      <div>
+      <div className="mb-4">
         <p className="field-label">{t.editor.font}</p>
         <div className="flex flex-wrap gap-2">
           {FONT_KEYS.map((f) => {

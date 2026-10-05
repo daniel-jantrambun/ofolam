@@ -26,12 +26,25 @@ export type SlideKind = "photo" | "map" | "night" | "topo";
 /** Decoded user photo. ImageBitmap keeps EXIF orientation; HTMLImageElement is the fallback. */
 export type Photo = ImageBitmap | HTMLImageElement;
 /**
+ * Colors a slide overrides. A missing entry inherits the card-wide one (`CardOptions.routeColor`,
+ * `texts[key].color`...); for texts and the credit, `null` is the explicit "automatic" color.
+ */
+export type SlideColors = {
+  texts?: Partial<Record<TextKey, string | null>>;
+  route?: string;
+  legs?: (string | null)[];
+  credit?: string | null;
+  brand?: BrandColor;
+};
+/**
  * One background of the "slides" list. Every slide carries the settings of all kinds, so
  * switching its kind back and forth loses nothing; only those of its `kind` are used.
  */
 export type Slide = {
   id: string;
   kind: SlideKind;
+  /** Element colors of this slide only: the backgrounds differ, so the colors that suit them do too. */
+  colors: SlideColors;
   /** kind "photo": the picture (null until one is chosen: drawn as a night fill) and its framing. */
   photo: Photo | null;
   crop: Crop;
@@ -46,6 +59,7 @@ export const SLIDES_MAX = 10;
 export const newSlide = (kind: SlideKind, from?: Partial<Slide>): Slide => ({
   photo: null,
   crop: DEFAULT_CROP,
+  colors: {},
   mapStyle: "bright",
   mapOpacity: 1,
   tint: { topo: null, night: null },
@@ -260,6 +274,67 @@ export async function loadPhoto(file: File): Promise<Photo> {
 export const activeSlide = (o: Pick<CardOptions, "slides" | "slideIndex">): Slide | null =>
   o.slides[Math.min(Math.max(0, o.slideIndex), o.slides.length - 1)] ?? null;
 
+/** The options as drawn for a slide: its own colors laid over the card-wide ones. */
+export function withSlideColors(o: CardOptions, slide: Slide | null): CardOptions {
+  const c = slide?.colors;
+  if (!c) return o;
+  const texts = { ...o.texts };
+  for (const [k, color] of Object.entries(c.texts ?? {}) as [TextKey, string | null][])
+    texts[k] = { ...(texts[k] ?? DEFAULT_TEXT_STYLE), color };
+  return {
+    ...o,
+    texts,
+    routeColor: c.route ?? o.routeColor,
+    legColors: c.legs ?? o.legColors,
+    creditColor: c.credit !== undefined ? c.credit : o.creditColor,
+    brandColor: c.brand ?? o.brandColor,
+  };
+}
+
+/**
+ * Changes colors where the user is looking: on the slide being shown, or on the card-wide
+ * options when there is no slide (video, sticker).
+ */
+export function setColors(o: CardOptions, patch: SlideColors): CardOptions {
+  const at = Math.min(Math.max(0, o.slideIndex), o.slides.length - 1);
+  if (o.background === "slides" && o.slides[at]) {
+    const merge = (c: SlideColors): SlideColors => ({
+      ...c,
+      ...patch,
+      texts: { ...c.texts, ...patch.texts },
+    });
+    return { ...o, slides: o.slides.map((s, i) => (i === at ? { ...s, colors: merge(s.colors) } : s)) };
+  }
+  const texts = { ...o.texts };
+  for (const [k, color] of Object.entries(patch.texts ?? {}) as [TextKey, string | null][])
+    texts[k] = { ...(texts[k] ?? DEFAULT_TEXT_STYLE), color };
+  return {
+    ...o,
+    texts,
+    routeColor: patch.route ?? o.routeColor,
+    legColors: patch.legs ?? o.legColors,
+    creditColor: patch.credit !== undefined ? patch.credit : o.creditColor,
+    brandColor: patch.brand ?? o.brandColor,
+  };
+}
+
+/** Gives every slide the colors of the one being shown. */
+export function colorsToAllSlides(o: CardOptions): CardOptions {
+  const from = activeSlide(o);
+  if (!from) return o;
+  return {
+    ...o,
+    slides: o.slides.map((s) => ({
+      ...s,
+      colors: {
+        ...from.colors,
+        texts: { ...from.colors.texts },
+        legs: from.colors.legs && [...from.colors.legs],
+      },
+    })),
+  };
+}
+
 /** Flat color standing for a slide in a thumbnail (a photo draws itself instead). */
 export function slideSwatch(slide: Slide): string {
   if (slide.kind === "map") return MAP_TEXT[slide.mapStyle].fill;
@@ -358,9 +433,11 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
 export function renderCard(
   canvas: HTMLCanvasElement,
   a: CardActivity,
-  opts: CardOptions,
+  cardOpts: CardOptions,
   hooks: RenderHooks = {},
 ): RenderResult {
+  // The slide's own colors win over the card-wide ones
+  const opts = withSlideColors(cardOpts, cardOpts.background === "slides" ? activeSlide(cardOpts) : null);
   const { w, h } = SIZES[opts.format];
   canvas.width = w;
   canvas.height = h;

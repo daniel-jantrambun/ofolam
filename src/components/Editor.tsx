@@ -23,6 +23,7 @@ import {
   type CardActivity,
   type CardOptions,
   type Corner,
+  colorsToAllSlides,
   DEFAULT_TEXT_STYLE,
   DRAW_ORDER,
   ensureFonts,
@@ -42,10 +43,12 @@ import {
   type Slide,
   type SlideKind,
   type StatKey,
+  setColors,
   TEXT_SIZE_MAX,
   TEXT_SIZE_MIN,
   type TextKey,
   type TextStyle,
+  withSlideColors,
 } from "../lib/render";
 import { canShareFiles, canvasToBlob, copyImage, downloadBlob, shareImage, shareImages } from "../lib/share";
 import {
@@ -435,6 +438,8 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
   // fire inside the tap (Safari refuses to share after an await)
   const slide = activeSlide(opts);
   const inSlides = opts.background === "slides";
+  // The options with the shown slide's own colors laid over, for what the color pickers display
+  const colored = withSlideColors(opts, inSlides ? slide : null);
   // Map slides frame the trace on their own; photo, light and dark share one framing
   const onMap = inSlides && slide?.kind === "map";
   const routeKey = onMap ? "mapRouteBox" : "routeBox";
@@ -479,14 +484,14 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
       const at = Math.min(o.slideIndex, o.slides.length - 1);
       return { ...o, slides: o.slides.map((sl, i) => (i === at ? { ...sl, ...patch } : sl)) };
     });
-  /** Appends an empty photo slide and shows it: a carousel is most often made of photos. */
+  /** Appends a map slide and shows it (its type can still be changed right after). */
   const addSlide = () =>
     setOpts((o) =>
       o.slides.length >= SLIDES_MAX
         ? o
         : {
             ...o,
-            slides: [...o.slides, newSlide("photo")],
+            slides: [...o.slides, newSlide("map")],
             slideIndex: o.slides.length,
           },
     );
@@ -553,7 +558,9 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
     const files = Array.from(e.target.files ?? []);
     e.target.value = ""; // allows picking the same files again
     if (files.length === 0) return;
-    const fills = replace || (slide?.kind === "photo" && !slide.photo);
+    // The lone default background (plain fill) gives way to the first photo instead of staying as slide 1
+    const lonePlain = opts.slides.length === 1 && (slide?.kind === "night" || slide?.kind === "topo");
+    const fills = replace || (slide?.kind === "photo" && !slide.photo) || lonePlain;
     const room = SLIDES_MAX - opts.slides.length + (fills ? 1 : 0);
     const loaded: Photo[] = [];
     let unreadable = false;
@@ -729,9 +736,13 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
   const applyTextStyles = (changes: Partial<Record<TextKey, TextStyle>>) => {
     const base = collisionsOf(opts);
     let next = opts;
+    // Colors belong to the slide being shown: they are split from the rest of the style
+    const colorChanges: Partial<Record<TextKey, string | null>> = {};
     let limitedByElement = false;
     let limitedByEdge = false;
-    for (const [key, style] of Object.entries(changes) as [TextKey, TextStyle][]) {
+    for (const [key, requestedStyle] of Object.entries(changes) as [TextKey, TextStyle][]) {
+      if (requestedStyle.color !== styleOfKey(key).color) colorChanges[key] = requestedStyle.color;
+      const style = { ...requestedStyle, color: (next.texts[key] ?? DEFAULT_TEXT_STYLE).color };
       const withStyle = (s: TextStyle): CardOptions => ({ ...next, texts: { ...next.texts, [key]: s } });
       const requested = style.size ?? 1;
       const size = largestFitting(
@@ -748,7 +759,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
       if (size === null) continue;
       next = withStyle(size < requested ? { ...style, size: Math.floor(size * 100) / 100 } : style);
     }
-    setOpts(next);
+    setOpts(setColors(next, { texts: colorChanges }));
     if (limitedByElement) setToast(t.editor.sizeLimited);
     else if (limitedByEdge) setToast(t.editor.sizeEdgeLimited);
   };
@@ -794,12 +805,12 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
   const selectedTexts = selection.filter(
     (k): k is TextKey => k !== "route" && k !== "brand" && k !== "credit",
   );
-  const styleOfKey = (k: TextKey) => opts.texts[k] ?? DEFAULT_TEXT_STYLE;
+  const styleOfKey = (k: TextKey) => colored.texts[k] ?? DEFAULT_TEXT_STYLE;
   const commonSize = selectedTexts.length ? (styleOfKey(selectedTexts[0]).size ?? 1) : 1;
   const commonColor = selectedTexts.length
     ? styleOfKey(selectedTexts[0]).color
     : selection.includes("route")
-      ? opts.routeColor
+      ? colored.routeColor
       : null;
   /** Applies a size multiplier to every selected text block. */
   const setSelectionSize = (size: number | null) =>
@@ -810,11 +821,12 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
     );
   /** Applies a color to every selected text block, and to the route when selected (null = auto, texts only). */
   const setSelectionColor = (color: string | null) =>
-    setOpts((o) => {
-      const texts = { ...o.texts };
-      for (const k of selectedTexts) texts[k] = { ...(texts[k] ?? DEFAULT_TEXT_STYLE), color };
-      return { ...o, texts, routeColor: color && selection.includes("route") ? color : o.routeColor };
-    });
+    setOpts((o) =>
+      setColors(o, {
+        texts: Object.fromEntries(selectedTexts.map((k) => [k, color])),
+        ...(color && selection.includes("route") ? { route: color } : {}),
+      }),
+    );
 
   /** Aligns every selected element on one edge or axis of the selection's bounding box. */
   const alignSelection = (how: "left" | "centerX" | "right" | "top" | "centerY" | "bottom") => {
@@ -1218,6 +1230,21 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                 )}
                 {inSlides && slide && (
                   <div className="mt-3 space-y-4">
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => onPickPhoto(e, false)}
+                      className="sr-only"
+                    />
+                    <input
+                      ref={replaceFileRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => onPickPhoto(e, true)}
+                      className="sr-only"
+                    />
                     {isCarousel && (
                       <PhotoStrip
                         slides={opts.slides}
@@ -1231,11 +1258,19 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                     <div className="flex flex-wrap items-center gap-3">
                       <button
                         type="button"
-                        onClick={addSlide}
+                        onClick={() => fileRef.current?.click()}
                         disabled={opts.slides.length >= SLIDES_MAX}
                         className="btn btn-outline btn-sm"
                       >
-                        + {t.editor.addSlide}
+                        + {t.editor.addPhotos}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={addSlide}
+                        disabled={opts.slides.length >= SLIDES_MAX}
+                        className="link text-sm"
+                      >
+                        {t.editor.addSlide}
                       </button>
                       {isCarousel && (
                         <button type="button" onClick={removeSlide} className="link text-sm">
@@ -1301,21 +1336,6 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                       )}
                       {slide.kind === "photo" && (
                         <div className="space-y-2">
-                          <input
-                            ref={fileRef}
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            onChange={(e) => onPickPhoto(e, false)}
-                            className="sr-only"
-                          />
-                          <input
-                            ref={replaceFileRef}
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => onPickPhoto(e, true)}
-                            className="sr-only"
-                          />
                           <div className="flex flex-wrap items-center gap-3">
                             {slide.photo ? (
                               <button
@@ -1619,7 +1639,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                     </div>
                   )}
                   <TextStylePanel
-                    value={opts.texts[selectedText] ?? DEFAULT_TEXT_STYLE}
+                    value={colored.texts[selectedText] ?? DEFAULT_TEXT_STYLE}
                     onChange={(style) => applyTextStyles({ [selectedText]: style })}
                   />
                   <div className="mt-4 border-t border-border pt-4">
@@ -1630,7 +1650,11 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
 
               {selected === "credit" && (
                 <Field label={t.editor.creditColor}>
-                  <ColorPicker value={opts.creditColor} onChange={(c) => set("creditColor", c)} allowAuto />
+                  <ColorPicker
+                    value={colored.creditColor}
+                    onChange={(c) => setOpts((o) => setColors(o, { credit: c }))}
+                    allowAuto
+                  />
                   {opts.creditPos && (
                     <button
                       type="button"
@@ -1651,8 +1675,8 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                   <p className="field-label mt-4">{t.editor.brandColor}</p>
                   <Segmented
                     options={BRAND_COLORS.map((c) => ({ id: c, label: t.editor.brandColors[c] }))}
-                    value={opts.brandColor}
-                    onChange={(v: BrandColor) => set("brandColor", v)}
+                    value={colored.brandColor}
+                    onChange={(v: BrandColor) => setOpts((o) => setColors(o, { brand: v }))}
                   />
                 </Field>
               )}
@@ -1693,11 +1717,11 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                           <div key={leg.id}>
                             <p className="mb-1 text-xs text-muted">{sportLabel(leg.sportType, t)}</p>
                             <ColorPicker
-                              value={opts.legColors[i] ?? LEG_PALETTE[i % LEG_PALETTE.length]}
+                              value={colored.legColors[i] ?? LEG_PALETTE[i % LEG_PALETTE.length]}
                               onChange={(c) => {
-                                const next = [...opts.legColors];
+                                const next = [...colored.legColors];
                                 next[i] = c;
-                                set("legColors", next);
+                                setOpts((o) => setColors(o, { legs: next }));
                               }}
                             />
                           </div>
@@ -1708,7 +1732,10 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                     <>
                       <p className="mb-4 text-sm text-muted">{t.editor.routeColor}</p>
                       <div className="mb-4">
-                        <ColorPicker value={opts.routeColor} onChange={(c) => c && set("routeColor", c)} />
+                        <ColorPicker
+                          value={colored.routeColor}
+                          onChange={(c) => c && setOpts((o) => setColors(o, { route: c }))}
+                        />
                       </div>
                     </>
                   )}
@@ -1717,6 +1744,12 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                   </div>
                   <CenterButtons onCenter={(axis) => centerLayer("route", axis)} />
                 </Field>
+              )}
+
+              {isCarousel && (
+                <button type="button" onClick={() => setOpts(colorsToAllSlides)} className="btn w-full">
+                  {t.editor.colorsToAllSlides}
+                </button>
               )}
             </>
           )}
@@ -1820,9 +1853,13 @@ function loadPrefs(): Partial<CardOptions> {
 }
 function savePrefs(o: CardOptions) {
   const texts: CardOptions["texts"] = {};
-  for (const [k, v] of Object.entries(o.texts))
+  for (const [k, v] of Object.entries(
+    withSlideColors(o, o.background === "slides" ? activeSlide(o) : null).texts,
+  ))
     if (v) texts[k as keyof CardOptions["texts"]] = { ...v, pos: null };
   const shown = activeSlide(o);
+  // What is kept is the look of the slide being shown
+  const looks = withSlideColors(o, o.background === "slides" ? shown : null);
   const prefs: EditorPrefs = {
     format: o.format,
     // A video is tied to one activity: come back to the still background
@@ -1835,18 +1872,18 @@ function savePrefs(o: CardOptions) {
           tint: shown.tint,
         }
       : undefined,
-    routeColor: o.routeColor,
+    routeColor: looks.routeColor,
     stats: o.stats,
     showName: o.showName,
     showMeta: o.showMeta,
     metaParts: o.metaParts,
     showRoute: o.showRoute,
     routeTrim: o.routeTrim,
-    legColors: o.legColors,
+    legColors: looks.legColors,
     showLegs: o.showLegs,
     brandCorner: o.brandCorner,
-    brandColor: o.brandColor,
-    creditColor: o.creditColor,
+    brandColor: looks.brandColor,
+    creditColor: looks.creditColor,
     texts,
   };
   try {
@@ -2003,7 +2040,7 @@ function CenterButtons({ onCenter }: { onCenter: (axis: "x" | "y") => void }) {
   const { t } = useI18n();
   const cls = "btn btn-outline btn-sm";
   return (
-    <div className="mb-4 flex items-center gap-2">
+    <div className=" flex items-center gap-2">
       <span className="text-sm text-muted">{t.editor.align}</span>
       <button type="button" onClick={() => onCenter("x")} className={cls}>
         {t.editor.centerH}

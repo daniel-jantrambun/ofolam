@@ -1,5 +1,5 @@
 import { palette } from "./colors";
-import type { CardOptions, TextKey, TextStyle } from "./render";
+import { activeSlide, type CardOptions, type TextKey, type TextStyle, withSlideColors } from "./render";
 
 /**
  * A template is a reusable layout for the card: which elements show, where they sit, how they
@@ -64,13 +64,16 @@ const STORED_KEYS: (keyof TemplateOptions)[] = [
 /** The storable part of the current options. */
 export function extractTemplate(o: CardOptions): TemplateOptions {
   const out: TemplateOptions = {};
-  for (const k of STORED_KEYS) (out as Record<string, unknown>)[k] = o[k];
+  // The colors saved are the ones of the slide being shown
+  const shown = withSlideColors(o, o.background === "slides" ? activeSlide(o) : null);
+  for (const k of STORED_KEYS) (out as Record<string, unknown>)[k] = shown[k];
   return out;
 }
 
 /** Applies a template on top of the current options, keeping what belongs to the activity. */
 export function applyTemplate(o: CardOptions, tpl: TemplateOptions): CardOptions {
-  const next: CardOptions = { ...o };
+  // A template describes the whole look: colors set on single slides give way to its own
+  const next: CardOptions = { ...o, slides: o.slides.map((s) => ({ ...s, colors: {} })) };
   // Every stored key is reset to the template's value, or to a neutral default when absent,
   // so that a template fully describes the look (a missing position means "automatic")
   const defaults: TemplateOptions = {
