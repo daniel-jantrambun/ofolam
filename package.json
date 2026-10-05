@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "test": "vitest run",
     "lint": "biome check . && tsc -b --noEmit",
     "format": "biome format --write .",
     "preview": "vite preview",
@@ -36,6 +37,7 @@
     "typescript": "^5.9.3",
     "vite": "^8.3.1",
     "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^5.0.3",
     "wrangler": "^4.141.0"
   }
 }

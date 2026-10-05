@@ -16,11 +16,11 @@ export type TemplateOptions = Partial<
     | "stats"
     | "showName"
     | "showMeta"
+    | "metaParts"
     | "showRoute"
     | "routeTrim"
     | "legColors"
     | "showLegs"
-    | "order"
     | "brandCorner"
     | "brandPos"
     | "brandColor"
@@ -46,11 +46,11 @@ const STORED_KEYS: (keyof TemplateOptions)[] = [
   "stats",
   "showName",
   "showMeta",
+  "metaParts",
   "showRoute",
   "routeTrim",
   "legColors",
   "showLegs",
-  "order",
   "brandCorner",
   "brandPos",
   "brandColor",
@@ -77,7 +77,6 @@ export function applyTemplate(o: CardOptions, tpl: TemplateOptions): CardOptions
     creditPos: null,
     texts: {},
     legColors: [],
-    order: [],
   };
   for (const k of STORED_KEYS) {
     const v = k in tpl ? tpl[k] : defaults[k];

@@ -39,9 +39,21 @@ const tileUrl = (style: MapStyle, z: number, x: number, y: number) =>
   TILES[style].replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y));
 
 const cache = new Map<string, HTMLImageElement | "loading" | "failed">();
+/**
+ * Redraw callbacks waiting for a tile in flight. Every caller that hits a "loading" tile registers
+ * here: otherwise a render started without a callback (template thumbnails, carousel export)
+ * would swallow the arrival and the main canvas would never be redrawn.
+ */
+const waiters = new Map<string, Set<() => void>>();
+
+const notify = (url: string) => {
+  const cbs = waiters.get(url);
+  waiters.delete(url);
+  for (const cb of cbs ?? []) cb();
+};
 
 /** Returns the tile if cached, otherwise starts loading it and reports back through `onLoad`. */
-function getTile(
+export function getTile(
   style: MapStyle,
   z: number,
   x: number,
@@ -51,13 +63,19 @@ function getTile(
   const url = tileUrl(style, z, x, y);
   const hit = cache.get(url);
   if (hit instanceof HTMLImageElement) return hit;
+  if (onLoad && hit === "loading") {
+    const set = waiters.get(url) ?? new Set();
+    set.add(onLoad);
+    waiters.set(url, set);
+  }
   if (hit) return null;
+  if (onLoad) waiters.set(url, new Set([onLoad]));
   cache.set(url, "loading");
   const img = new Image();
   img.crossOrigin = "anonymous"; // required: a tainted canvas could not be exported
   img.onload = () => {
     cache.set(url, img);
-    onLoad?.();
+    notify(url);
   };
   img.onerror = () => {
     // Transient network errors (QUIC resets, flaky connections) must not leave a hole in the
@@ -65,7 +83,7 @@ function getTile(
     cache.set(url, "failed");
     window.setTimeout(() => {
       cache.delete(url);
-      onLoad?.();
+      notify(url);
     }, RETRY_DELAY_MS);
   };
   img.src = url;
