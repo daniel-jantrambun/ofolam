@@ -80,7 +80,9 @@ export default function SettingsMenu({
       {open && (
         <div
           id={panelId}
-          className={`card absolute right-0 z-20 w-max space-y-3 p-3 ${openUp ? "bottom-full mb-2" : "top-full mt-2"}`}
+          // Anchored to the button's right edge, so it must never be wider than the room on its left
+          // (the button is not always at the screen edge, e.g. next to the share button in the editor)
+          className={`card absolute right-0 z-20 w-max max-w-[min(20rem,calc(100vw-2rem))] space-y-3 p-3 ${openUp ? "bottom-full mb-2" : "top-full mt-2"}`}
         >
           {/* Any choice closes the panel */}
           {actions.length > 0 && (

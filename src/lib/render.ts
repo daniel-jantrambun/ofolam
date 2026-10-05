@@ -167,6 +167,8 @@ export type CardOptions = {
   videoMuted: boolean;
   /** Where the route is drawn, as fractions of the card. `null` = automatic layout. */
   routeBox: RouteBox | null;
+  /** Same as `routeBox`, but only for map slides: the trace needs its own framing over a basemap. */
+  mapRouteBox: RouteBox | null;
   /** Per-block text overrides; missing = defaults. */
   texts: Partial<Record<TextKey, TextStyle>>;
   /** Where the "Powered by Strava" logo sits, and which of the official color variants is used. */
@@ -351,7 +353,7 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
 
 /**
  * Draws the card. Returns the box the route was fitted into (the automatic one when
- * `opts.routeBox` is null), so the editor can start a drag from it.
+ * `opts.routeBox` / `opts.mapRouteBox` is null), so the editor can start a drag from it.
  */
 export function renderCard(
   canvas: HTMLCanvasElement,
@@ -554,7 +556,7 @@ export function renderCard(
 
   // --- Route ---
   const autoBox: RouteBox = { x: PL / w, y: top / h, w: (w - PL - PR) / w, h: (bottom - top - 24) / h };
-  const routeBox = opts.routeBox ?? autoBox;
+  const routeBox = (kind === "map" ? opts.mapRouteBox : opts.routeBox) ?? autoBox;
   const result: RenderResult = {
     complete: true,
     routeBox,
@@ -629,7 +631,8 @@ export function renderCard(
         paths.push({ path, color, first: slice[0], last: slice[slice.length - 1] });
       });
 
-      if (opts.showRoute && paths.length) {
+      // A map background always shows the trace it follows, whatever the Elements tab says
+      if ((opts.showRoute || isMap) && paths.length) {
         layers.set("route", () => {
           ctx.save();
           ctx.lineJoin = "round";

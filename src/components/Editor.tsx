@@ -148,6 +148,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
     videoTrim: { start: 0, end: 0 },
     videoMuted: false,
     routeBox: null,
+    mapRouteBox: null,
     texts: {},
     brandCorner: "bl" as Corner,
     brandPos: null,
@@ -224,7 +225,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
           const style = texts[k];
           if (style) texts[k] = { ...style, pos: null };
         }
-        return { ...o, texts, routeBox: null, brandPos: null, creditPos: null };
+        return { ...o, texts, routeBox: null, mapRouteBox: null, brandPos: null, creditPos: null };
       });
     }
   };
@@ -434,6 +435,9 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
   // fire inside the tap (Safari refuses to share after an await)
   const slide = activeSlide(opts);
   const inSlides = opts.background === "slides";
+  // Map slides frame the trace on their own; photo, light and dark share one framing
+  const onMap = inSlides && slide?.kind === "map";
+  const routeKey = onMap ? "mapRouteBox" : "routeBox";
   const isCarousel = inSlides && opts.slides.length > 1;
   const slideBlobsRef = useRef<Blob[] | null>(null);
   useEffect(() => {
@@ -693,7 +697,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
   const drawnBox = drawn?.routeBox ?? null;
   const boxes: Partial<Record<LayerKey, Box>> = {
     ...(drawn?.texts ?? {}),
-    ...(opts.showRoute && hasRoute && drawnBox ? { route: drawnBox } : {}),
+    ...((opts.showRoute || onMap) && hasRoute && drawnBox ? { route: drawnBox } : {}),
   };
   // Items follow the stacking order (deepest first) so the topmost element wins the tap
   const overlayItems: OverlayItem[] = [
@@ -868,7 +872,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
   const onOverlayChange = (changes: BoxChange[]) => {
     setOpts((o) => {
       const texts = { ...o.texts };
-      let routeBox = o.routeBox;
+      let routeBox = o[routeKey];
       let brandPos = o.brandPos;
       let creditPos = o.creditPos;
       for (const { key, box } of changes) {
@@ -884,7 +888,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
           texts[textKey] = { ...(texts[textKey] ?? DEFAULT_TEXT_STYLE), pos: { x: box.x, y: box.y } };
         }
       }
-      return { ...o, texts, routeBox, brandPos, creditPos };
+      return { ...o, texts, [routeKey]: routeBox, brandPos, creditPos };
     });
   };
   const isTextKey = (k: string | null): k is TextKey =>
@@ -1461,7 +1465,8 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
           {tab === "elements" && (
             <Field label={t.editor.elements}>
               <div className="flex flex-wrap gap-2">
-                {hasRoute && (
+                {/* On a map the trace is always drawn: no toggle */}
+                {hasRoute && !onMap && (
                   <Pill
                     on={opts.showRoute}
                     onClick={() => {
@@ -1670,12 +1675,12 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                         const h = drawnBox.h * (w / drawnBox.w);
                         const cx = drawnBox.x + drawnBox.w / 2;
                         const cy = drawnBox.y + drawnBox.h / 2;
-                        set("routeBox", { x: cx - w / 2, y: cy - h / 2, w, h });
+                        set(routeKey, { x: cx - w / 2, y: cy - h / 2, w, h });
                       }}
                       className="range flex-1"
                     />
-                    {opts.routeBox && (
-                      <button type="button" onClick={() => set("routeBox", null)} className="link text-sm">
+                    {opts[routeKey] && (
+                      <button type="button" onClick={() => set(routeKey, null)} className="link text-sm">
                         {t.editor.routeAuto}
                       </button>
                     )}
