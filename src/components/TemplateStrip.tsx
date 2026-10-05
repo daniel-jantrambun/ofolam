@@ -167,7 +167,7 @@ function MoreDialog({
             title={t.templates.close}
             className="btn btn-ghost btn-sm"
           >
-            ×
+            <div className="text-2xl">×</div>
           </button>
         </div>
         <div className="grid grid-cols-3 gap-4 overflow-y-auto p-4 sm:grid-cols-4 md:grid-cols-5">
