@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   check:
-    name: Lint & build
+    name: Lint, test, & build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +26,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      - run: pnpm test
       - run: pnpm build
         env:
           VITE_COFFEE_URL: ${{ vars.VITE_COFFEE_URL }}

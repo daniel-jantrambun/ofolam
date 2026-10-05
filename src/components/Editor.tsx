@@ -12,7 +12,9 @@ import {
 import { BRAND_COLORS, type BrandColor } from "../lib/brand";
 import { LIGHT_TINTS, NIGHT_TINTS, ROUTE_COLORS } from "../lib/colors";
 import { type Crop, DEFAULT_CROP } from "../lib/crop";
+import { collidingPairs, hasNewCollision, largestFitting, newProblems } from "../lib/fit";
 import { sportLabel, usesPace } from "../lib/format";
+import { GAP_X, GAP_Y, overlaps, packAlong, resolveOverlap, sharesBand, spreadAlong } from "../lib/layout";
 import { buildMeta } from "../lib/multisport";
 import {
   activeSlide,
@@ -22,13 +24,14 @@ import {
   type CardOptions,
   type Corner,
   DEFAULT_TEXT_STYLE,
+  DRAW_ORDER,
   ensureFonts,
   type Format,
   hasStat,
   type LayerKey,
   LEG_PALETTE,
-  layerOrder,
   loadPhoto,
+  type MetaParts,
   newSlide,
   type Photo,
   type RenderResult,
@@ -42,6 +45,7 @@ import {
   TEXT_SIZE_MAX,
   TEXT_SIZE_MIN,
   type TextKey,
+  type TextStyle,
 } from "../lib/render";
 import { canShareFiles, canvasToBlob, copyImage, downloadBlob, shareImage, shareImages } from "../lib/share";
 import {
@@ -110,6 +114,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
   const subjectKey = subject.kind === "single" ? String(subject.id) : subject.ids.join("-");
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const replaceFileRef = useRef<HTMLInputElement>(null);
   const videoFileRef = useRef<HTMLInputElement>(null);
@@ -130,6 +135,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
     stats: ["distance", "time", "pace"] as StatKey[],
     showName: true,
     showMeta: true,
+    metaParts: "all" as MetaParts,
     showRoute: true,
     routeTrim: 200,
     legColors: [],
@@ -143,7 +149,6 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
     videoMuted: false,
     routeBox: null,
     texts: {},
-    order: [] as LayerKey[],
     brandCorner: "bl" as Corner,
     brandPos: null,
     creditPos: null,
@@ -692,30 +697,88 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
   };
   // Items follow the stacking order (deepest first) so the topmost element wins the tap
   const overlayItems: OverlayItem[] = [
-    ...(drawn?.order ?? [])
-      .filter((key) => boxes[key])
-      .map((key) => ({ key, box: boxes[key]!, resizable: key === "route" })),
-    // The mention is always on top and only moves between corners
-    ...(drawn ? [{ key: "brand", box: drawn.brandBox }] : []),
-    ...(drawn ? [{ key: "credit", box: drawn.creditBox }] : []),
+    ...DRAW_ORDER.filter((key) => boxes[key]).map((key) => ({
+      key,
+      box: boxes[key]!,
+      resizable: key === "route",
+      solid: key !== "route",
+    })),
+    // The mention is always on top; with VITE_NO_LOCK_MENTIONS it does not only moves between corners (CornerPicker)
+    ...(drawn ? [{ key: "brand", box: drawn.brandBox, fixed: !NO_LOCK_MENTIONS, solid: true }] : []),
+    ...(drawn ? [{ key: "credit", box: drawn.creditBox, fixed: !NO_LOCK_MENTIONS, solid: true }] : []),
   ];
 
-  /** Moves the selected layer: one step up (towards the viewer) or down, or straight to the top or bottom. */
-  const moveLayer = (key: LayerKey, dir: 1 | -1 | "top" | "bottom") => {
-    const order = layerOrder(opts.order).filter((k) => boxes[k]);
-    const i = order.indexOf(key);
-    if (i < 0) return;
-    if (dir === "top" || dir === "bottom") {
-      order.splice(i, 1);
-      if (dir === "top") order.push(key);
-      else order.unshift(key);
-    } else {
-      const j = i + dir;
-      if (j < 0 || j >= order.length) return;
-      [order[i], order[j]] = [order[j], order[i]];
-    }
-    set("order", order);
+  /** Boxes of a card laid out with `o`, without painting it (off-screen canvas, no tiles). */
+  const measureLayout = (o: CardOptions) => {
+    if (!activity) return null;
+    measureCanvasRef.current ??= document.createElement("canvas");
+    return renderCard(measureCanvasRef.current, activity, o, { layoutOnly: true });
   };
+  const collisionsOf = (o: CardOptions) => {
+    const r = measureLayout(o);
+    return r ? collidingPairs(r) : new Set<string>();
+  };
+  /**
+   * Applies style changes to text blocks. A block that would grow into another one is capped at the
+   * largest size that does not (a font or weight change shrinks it the same way).
+   */
+  const applyTextStyles = (changes: Partial<Record<TextKey, TextStyle>>) => {
+    const base = collisionsOf(opts);
+    let next = opts;
+    let limitedByElement = false;
+    let limitedByEdge = false;
+    for (const [key, style] of Object.entries(changes) as [TextKey, TextStyle][]) {
+      const withStyle = (s: TextStyle): CardOptions => ({ ...next, texts: { ...next.texts, [key]: s } });
+      const requested = style.size ?? 1;
+      const size = largestFitting(
+        requested,
+        TEXT_SIZE_MIN,
+        (v) => !hasNewCollision(base, collisionsOf(withStyle({ ...style, size: v }))),
+      );
+      if (size === null || size < requested) {
+        // Say what stopped the text: another element, or the card edge
+        const problems = newProblems(base, collisionsOf(withStyle(style)));
+        if (problems.overlap || !problems.edge) limitedByElement = true;
+        else limitedByEdge = true;
+      }
+      if (size === null) continue;
+      next = withStyle(size < requested ? { ...style, size: Math.floor(size * 100) / 100 } : style);
+    }
+    setOpts(next);
+    if (limitedByElement) setToast(t.editor.sizeLimited);
+    else if (limitedByEdge) setToast(t.editor.sizeEdgeLimited);
+  };
+  /** Sets the title text, cut to the longest prefix that does not run into another block. */
+  const setTitleText = (text: string) => {
+    const value = text.slice(0, TITLE_MAX);
+    const base = collisionsOf(opts);
+    const fits = (n: number) =>
+      !hasNewCollision(base, collisionsOf({ ...opts, titleText: value.slice(0, Math.floor(n)) }));
+    const n = value.length ? largestFitting(value.length, 1, fits, 10) : value.length;
+    const kept = n === null ? null : value.slice(0, Math.floor(n));
+    if (kept !== null) set("titleText", kept);
+    if (kept === null || kept.length < value.length) {
+      const problems = newProblems(base, collisionsOf({ ...opts, titleText: value }));
+      setToast(problems.edge && !problems.overlap ? t.editor.textEdgeLimited : t.editor.textLimited);
+    }
+  };
+
+  /**
+   * Moves the Strava logo (and so the credit) to another corner, unless a text sits there:
+   * the card is drawn once off screen with the new corner to see where they would land.
+   */
+  const pickBrandCorner = (corner: Corner) => {
+    if (!activity || corner === opts.brandCorner) return;
+    const next = { ...opts, brandCorner: corner, brandPos: null, creditPos: null };
+    const preview = measureLayout(next);
+    if (!preview) return;
+    const blocked = Object.values(preview.texts).some(
+      (box) => box && (overlaps(box, preview.brandBox) || overlaps(box, preview.creditBox)),
+    );
+    if (blocked) return setToast(t.editor.cornerBlocked);
+    setOpts(next);
+  };
+
   /** Centers an element on the card along one axis, keeping the other coordinate. */
   const centerLayer = (key: LayerKey, axis: "x" | "y") => {
     const box = boxes[key];
@@ -736,11 +799,11 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
       : null;
   /** Applies a size multiplier to every selected text block. */
   const setSelectionSize = (size: number | null) =>
-    setOpts((o) => {
-      const texts = { ...o.texts };
-      for (const k of selectedTexts) texts[k] = { ...(texts[k] ?? DEFAULT_TEXT_STYLE), size };
-      return { ...o, texts };
-    });
+    applyTextStyles(
+      Object.fromEntries(selectedTexts.map((k) => [k, { ...styleOfKey(k), size }])) as Partial<
+        Record<TextKey, TextStyle>
+      >,
+    );
   /** Applies a color to every selected text block, and to the route when selected (null = auto, texts only). */
   const setSelectionColor = (color: string | null) =>
     setOpts((o) => {
@@ -759,23 +822,48 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
     const x1 = Math.max(...group.map((g) => g.box.x + g.box.w));
     const y0 = Math.min(...group.map((g) => g.box.y));
     const y1 = Math.max(...group.map((g) => g.box.y + g.box.h));
-    onOverlayChange(
-      group.map(({ key, box }) => {
-        const b = { ...box };
-        if (how === "left") b.x = x0;
-        if (how === "centerX") b.x = (x0 + x1) / 2 - box.w / 2;
-        if (how === "right") b.x = x1 - box.w;
-        if (how === "top") b.y = y0;
-        if (how === "centerY") b.y = (y0 + y1) / 2 - box.h / 2;
-        if (how === "bottom") b.y = y1 - box.h;
-        return { key, box: b };
-      }),
-    );
+    const aligned = group.map(({ key, box }) => {
+      const b = { ...box };
+      if (how === "left") b.x = x0;
+      if (how === "centerX") b.x = (x0 + x1) / 2 - box.w / 2;
+      if (how === "right") b.x = x1 - box.w;
+      if (how === "top") b.y = y0;
+      if (how === "centerY") b.y = (y0 + y1) / 2 - box.h / 2;
+      if (how === "bottom") b.y = y1 - box.h;
+      return { key, box: b };
+    });
+    // Text blocks never overlap. Texts already sharing a row stay on it when aligned left, center
+    // or right: they are packed side by side with a small gap (likewise a column for top, middle,
+    // bottom). Otherwise they are separated along the other axis.
+    const isText = (k: string) => k !== "route" && k !== "brand" && k !== "credit";
+    const vertical = how === "left" || how === "centerX" || how === "right";
+    const texts = aligned.filter((a) => isText(a.key));
+    const originals = group.filter((g) => isText(g.key)).map((g) => g.box);
+    const packAxis = vertical ? "x" : "y";
+    const packed = sharesBand(originals, packAxis);
+    const anchor =
+      how === "left" || how === "top" ? "start" : how === "right" || how === "bottom" ? "end" : "center";
+    const spread = packed
+      ? packAlong(
+          texts.map((t) => ({ key: t.key, box: group.find((g) => g.key === t.key)!.box })),
+          packAxis,
+          anchor,
+          vertical ? x0 : y0,
+          vertical ? x1 : y1,
+          vertical ? GAP_X : GAP_Y,
+        )
+      : spreadAlong(texts, vertical ? "y" : "x");
+    // Texts outside the selection, plus the Strava logo and the credit, are obstacles
+    const others = [
+      ...(drawn ? Object.entries(drawn.texts) : [])
+        .filter(([k]) => !selection.includes(k))
+        .map(([, box]) => box as Box),
+      ...(drawn && !selection.includes("brand") ? [drawn.brandBox] : []),
+      ...(drawn && !selection.includes("credit") ? [drawn.creditBox] : []),
+    ];
+    const settled = new Map(spread.map(({ key, box }) => [key, resolveOverlap(box, others)]));
+    onOverlayChange(aligned.map(({ key, box }) => ({ key, box: settled.get(key) ?? box })));
   };
-  // Stackable layers only (the Strava mention sits outside the stack)
-  const stack = (drawn?.order ?? []).filter((key) => boxes[key]);
-  const canMoveUp = (key: LayerKey) => stack.indexOf(key) < stack.length - 1;
-  const canMoveDown = (key: LayerKey) => stack.indexOf(key) > 0;
   /** Applies box changes from the overlay (a drag may move several elements at once). */
   const onOverlayChange = (changes: BoxChange[]) => {
     setOpts((o) => {
@@ -1226,23 +1314,13 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                           />
                           <div className="flex flex-wrap items-center gap-3">
                             {slide.photo ? (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => replaceFileRef.current?.click()}
-                                  className="btn btn-outline"
-                                >
-                                  {t.editor.changePhoto}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => fileRef.current?.click()}
-                                  disabled={opts.slides.length >= SLIDES_MAX}
-                                  className="btn btn-outline"
-                                >
-                                  {t.editor.addPhotos}
-                                </button>
-                              </>
+                              <button
+                                type="button"
+                                onClick={() => replaceFileRef.current?.click()}
+                                className="btn btn-outline"
+                              >
+                                {t.editor.changePhoto}
+                              </button>
                             ) : (
                               <button
                                 type="button"
@@ -1437,6 +1515,20 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                   </Pill>
                 ))}
               </div>
+              {opts.showMeta && (
+                <div className="mt-4">
+                  <p className="mb-1 text-sm">{t.editor.metaParts}</p>
+                  <Segmented
+                    options={[
+                      { id: "all" as const, label: t.editor.metaAll },
+                      { id: "sport" as const, label: t.editor.metaSport },
+                      { id: "date" as const, label: t.editor.metaDate },
+                    ]}
+                    value={opts.metaParts}
+                    onChange={(v) => set("metaParts", v)}
+                  />
+                </div>
+              )}
             </Field>
           )}
 
@@ -1507,7 +1599,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                         type="text"
                         maxLength={TITLE_MAX}
                         value={opts.titleText ?? activity?.name ?? ""}
-                        onChange={(e) => set("titleText", e.target.value.slice(0, TITLE_MAX))}
+                        onChange={(e) => setTitleText(e.target.value)}
                         className="mt-1 w-full rounded-xl border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-primary"
                       />
                       {opts.titleText !== null && (
@@ -1523,14 +1615,9 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                   )}
                   <TextStylePanel
                     value={opts.texts[selectedText] ?? DEFAULT_TEXT_STYLE}
-                    onChange={(style) => set("texts", { ...opts.texts, [selectedText]: style })}
+                    onChange={(style) => applyTextStyles({ [selectedText]: style })}
                   />
                   <div className="mt-4 border-t border-border pt-4">
-                    <LayerButtons
-                      up={canMoveUp(selectedText)}
-                      down={canMoveDown(selectedText)}
-                      onMove={(d) => moveLayer(selectedText, d)}
-                    />
                     <CenterButtons onCenter={(axis) => centerLayer(selectedText, axis)} />
                   </div>
                 </Field>
@@ -1554,10 +1641,7 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
 
               {selected === "brand" && (
                 <Field label={t.editor.brandCorner}>
-                  <CornerPicker
-                    value={opts.brandCorner}
-                    onChange={(c) => setOpts((o) => ({ ...o, brandCorner: c, brandPos: null }))}
-                  />
+                  <CornerPicker value={opts.brandCorner} onChange={pickBrandCorner} />
                   {opts.brandPos && <p className="mt-2 text-xs text-muted">{t.editor.brandDragged}</p>}
                   <p className="field-label mt-4">{t.editor.brandColor}</p>
                   <Segmented
@@ -1626,11 +1710,6 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
                   <div className="mb-2">
                     <RouteTrim value={opts.routeTrim} onChange={(v) => set("routeTrim", v)} />
                   </div>
-                  <LayerButtons
-                    up={canMoveUp("route")}
-                    down={canMoveDown("route")}
-                    onMove={(d) => moveLayer("route", d)}
-                  />
                   <CenterButtons onCenter={(axis) => centerLayer("route", axis)} />
                 </Field>
               )}
@@ -1685,11 +1764,11 @@ type EditorPrefs = Partial<
     | "stats"
     | "showName"
     | "showMeta"
+    | "metaParts"
     | "showRoute"
     | "routeTrim"
     | "legColors"
     | "showLegs"
-    | "order"
     | "brandCorner"
     | "brandColor"
     | "creditColor"
@@ -1755,11 +1834,11 @@ function savePrefs(o: CardOptions) {
     stats: o.stats,
     showName: o.showName,
     showMeta: o.showMeta,
+    metaParts: o.metaParts,
     showRoute: o.showRoute,
     routeTrim: o.routeTrim,
     legColors: o.legColors,
     showLegs: o.showLegs,
-    order: o.order,
     brandCorner: o.brandCorner,
     brandColor: o.brandColor,
     creditColor: o.creditColor,
@@ -1802,6 +1881,8 @@ type SafeZoneKind = keyof typeof SAFE_ZONES;
 
 /** Maximum length of a custom activity name on the card. */
 const TITLE_MAX = 120;
+/** The Strava logo and the credit only move through the corner picker, not by dragging on the preview. */
+const NO_LOCK_MENTIONS = import.meta.env.VITE_NO_LOCK_MENTIONS === "true";
 const SHARE_ICON = "M12 16V4 M8 8l4-4 4 4 M5 14v6h14v-6";
 const PLAY_ICON = "M7 4.5v15l12.5-7.5z";
 const PAUSE_ICON = "M6 4.5h4v15H6z M14 4.5h4v15h-4z";
@@ -1856,67 +1937,6 @@ function EditorNav({
       })}
       {trailing}
     </nav>
-  );
-}
-
-/** Layer order controls: one step up / down, or straight to the front / back. */
-function LayerButtons({
-  up,
-  down,
-  onMove,
-}: {
-  up: boolean;
-  down: boolean;
-  onMove: (dir: 1 | -1 | "top" | "bottom") => void;
-}) {
-  const { t } = useI18n();
-  const cls = "btn btn-outline btn-sm";
-  const icon = (d: string) => (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d={d} />
-    </svg>
-  );
-  return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
-      <span className="text-sm text-muted">{t.editor.layer}</span>
-      <button
-        type="button"
-        onClick={() => onMove("top")}
-        disabled={!up}
-        className={cls}
-        title={t.editor.layerFront}
-        aria-label={t.editor.layerFront}
-      >
-        {icon("M12 19V7 M6 13l6-6 6 6 M6 4h12")}
-      </button>
-      <button type="button" onClick={() => onMove(1)} disabled={!up} className={cls}>
-        {icon("M12 19V5 M6 11l6-6 6 6")}
-        {t.editor.layerUp}
-      </button>
-      <button type="button" onClick={() => onMove(-1)} disabled={!down} className={cls}>
-        {icon("M12 5v14 M6 13l6 6 6-6")}
-        {t.editor.layerDown}
-      </button>
-      <button
-        type="button"
-        onClick={() => onMove("bottom")}
-        disabled={!down}
-        className={cls}
-        title={t.editor.layerBack}
-        aria-label={t.editor.layerBack}
-      >
-        {icon("M12 5v12 M6 11l6 6 6-6 M6 20h12")}
-      </button>
-    </div>
   );
 }
 

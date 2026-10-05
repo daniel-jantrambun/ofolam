@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { clamp } from "../lib/crop";
+import { clampInside, GAP_X, GAP_Y, resolveOverlap } from "../lib/layout";
 import type { Box } from "../lib/render";
 
 export type OverlayItem = {
@@ -9,6 +10,8 @@ export type OverlayItem = {
   resizable?: boolean;
   /** Item can only be selected, not dragged nor grouped (the Strava mention). */
   fixed?: boolean;
+  /** Text block, logo or credit: never overlaps another one, it snaps beside it when dropped on top. */
+  solid?: boolean;
 };
 
 export type BoxChange = { key: string; box: Box };
@@ -53,6 +56,8 @@ export default function CardOverlay({ label, items, selected, onSelect, onChange
   const layerRef = useRef<HTMLDivElement>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<Gesture | null>(null);
+  /** Boxes sent by the current drag, so the release can resolve overlaps from the final position. */
+  const lastBoxes = useRef(new Map<string, Box>());
   const longPress = useRef<{ timer: number; key: string; origin: { x: number; y: number } } | null>(null);
 
   /** Pointer position as fractions of the layer. */
@@ -165,15 +170,39 @@ export default function CardOverlay({ label, items, selected, onSelect, onChange
     const scale = g.resizable && g.dist > 0 && dist > 0 ? dist / g.dist : 1;
     const dx = center.x - g.center.x;
     const dy = center.y - g.center.y;
-    onChange(
-      g.targets.map(({ key, box }) => {
-        const w = clamp(box.w * scale, MIN_SIZE, MAX_SIZE);
-        const h = box.h * (w / box.w);
-        const cx = box.x + box.w / 2 + dx;
-        const cy = box.y + box.h / 2 + dy;
-        return { key, box: { x: clamp(cx, 0, 1) - w / 2, y: clamp(cy, 0, 1) - h / 2, w, h } };
-      }),
-    );
+    // Moving: the group stops as soon as one of its elements reaches the margin kept along the card edge
+    const minX = Math.min(...g.targets.map((t) => t.box.x));
+    const maxX = Math.max(...g.targets.map((t) => t.box.x + t.box.w));
+    const minY = Math.min(...g.targets.map((t) => t.box.y));
+    const maxY = Math.max(...g.targets.map((t) => t.box.y + t.box.h));
+    const [loX, hiX] = [GAP_X - minX, 1 - GAP_X - maxX];
+    const [loY, hiY] = [GAP_Y - minY, 1 - GAP_Y - maxY];
+    const gx = scale === 1 ? clamp(dx, Math.min(loX, hiX), Math.max(loX, hiX)) : dx;
+    const gy = scale === 1 ? clamp(dy, Math.min(loY, hiY), Math.max(loY, hiY)) : dy;
+    const changes = g.targets.map(({ key, box }) => {
+      const w = clamp(box.w * scale, MIN_SIZE, MAX_SIZE);
+      const h = box.h * (w / box.w);
+      const cx = box.x + box.w / 2 + gx;
+      const cy = box.y + box.h / 2 + gy;
+      return { key, box: clampInside({ x: cx - w / 2, y: cy - h / 2, w, h }) };
+    });
+    for (const c of changes) lastBoxes.current.set(c.key, c.box);
+    onChange(changes);
+  };
+
+  /** On release, text blocks dropped over another text block snap beside it. */
+  const settle = (keys: string[]) => {
+    const moved = keys.filter((k) => lastBoxes.current.has(k));
+    const obstacles = items.filter((i) => i.solid && !keys.includes(i.key)).map((i) => i.box);
+    const changes: BoxChange[] = [];
+    for (const key of moved) {
+      const box = lastBoxes.current.get(key)!;
+      if (!items.find((i) => i.key === key)?.solid) continue;
+      const next = resolveOverlap(box, obstacles);
+      if (next.x !== box.x || next.y !== box.y) changes.push({ key, box: next });
+    }
+    lastBoxes.current.clear();
+    if (changes.length) onChange(changes);
   };
 
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -182,7 +211,11 @@ export default function CardOverlay({ label, items, selected, onSelect, onChange
     e.currentTarget.releasePointerCapture(e.pointerId);
     cancelLongPress();
     if (pointers.current.size && gesture.current) startGesture(gesture.current.targets.map((t) => t.key));
-    else gesture.current = null;
+    else {
+      const keys = gesture.current?.targets.map((t) => t.key) ?? [];
+      gesture.current = null;
+      settle(keys);
+    }
   };
 
   const multi = selected.length > 1;

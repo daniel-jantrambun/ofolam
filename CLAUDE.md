@@ -23,6 +23,7 @@ pnpm install               # Install dependencies
 pnpm dev                   # Dev server (frontend + worker) on http://localhost:5173
 pnpm build                 # Typecheck (tsc -b) + Vite build
 pnpm lint                  # Biome (format + lint) + typecheck
+pnpm test                  # Unit tests (vitest, node environment, src/**/*.test.ts)
 pnpm format                # Apply Biome formatting
 pnpm run deploy            # Build + wrangler deploy (`pnpm deploy` alone is a pnpm built-in)
 
@@ -33,7 +34,7 @@ pnpm db:migrate:remote     # Apply pending migrations in production
 ```
 
 Use `pnpm lint` and `pnpm build` rather than calling biome, tsc or vite directly.
-There is no test suite yet.
+Unit tests cover pure logic in `src/lib/` (see `src/lib/tiles.test.ts`); there is no UI test suite.
 
 ## Configuration
 

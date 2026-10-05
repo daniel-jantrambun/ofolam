@@ -96,11 +96,11 @@ export const FONTS: Record<FontKey, string> = {
   mono: 'Menlo, Consolas, "Liberation Mono", monospace',
 };
 
-/** Everything the user can stack: the route and each text block. */
+/** Everything the user can move: the route and each text block. */
 export type LayerKey = "route" | TextKey;
 
-/** Default stacking, deepest first. Unknown keys (new stats) go on top in this order. */
-export const DEFAULT_ORDER: LayerKey[] = [
+/** Fixed stacking, deepest first: the route, then the texts. The background is below everything. */
+export const DRAW_ORDER: LayerKey[] = [
   "route",
   "meta",
   "title",
@@ -113,11 +113,6 @@ export const DEFAULT_ORDER: LayerKey[] = [
   "legs",
 ];
 
-/** Full stacking order (deepest first) from a partial user order. */
-export function layerOrder(order: LayerKey[]): LayerKey[] {
-  return [...order, ...DEFAULT_ORDER.filter((k) => !order.includes(k))];
-}
-
 /** Corner of the card holding the "Powered by Strava" mention. */
 export type Corner = "tl" | "tr" | "bl" | "br";
 
@@ -126,7 +121,6 @@ export type RenderResult = {
   complete: boolean;
   routeBox: RouteBox;
   texts: Partial<Record<TextKey, Box>>;
-  order: LayerKey[];
   /** Box of the "Powered by Strava" mention, so it can be selected on the preview. */
   brandBox: Box;
   /** Box of the "Created on ofolam.com" credit, so it can be selected on the preview. */
@@ -135,6 +129,8 @@ export type RenderResult = {
   brandInset: { x: number; y: number };
 };
 
+export type MetaParts = "all" | "sport" | "date";
+
 export type CardOptions = {
   format: Format;
   background: Background;
@@ -142,6 +138,8 @@ export type CardOptions = {
   stats: StatKey[];
   showName: boolean;
   showMeta: boolean;
+  /** What the meta line shows: sport and date, only the sport, or only the date. */
+  metaParts: MetaParts;
   showRoute: boolean;
   /** Custom activity name drawn instead of Strava's; null = Strava's name. */
   titleText: string | null;
@@ -171,8 +169,6 @@ export type CardOptions = {
   routeBox: RouteBox | null;
   /** Per-block text overrides; missing = defaults. */
   texts: Partial<Record<TextKey, TextStyle>>;
-  /** Stacking order, deepest first. The background is always below everything. */
-  order: LayerKey[];
   /** Where the "Powered by Strava" logo sits, and which of the official color variants is used. */
   brandCorner: Corner;
   /** Free position of the logo (top-left, fractions); null = the corner above. */
@@ -212,7 +208,13 @@ const MAP_TEXT: Record<MapStyle, { fill: string; text: string }> = {
 export type RenderHooks = {
   /** Called when an asset (map tile, Strava logo) arrives after the render: the caller should redraw. */
   onTileLoaded?: () => void;
+  /** Only measures the layout (boxes): no background, map tile nor route is drawn. */
+  layoutOnly?: boolean;
 };
+
+/** Text of the meta line for the chosen parts. */
+export const metaLabel = (parts: MetaParts, sport: string, date: string) =>
+  parts === "sport" ? sport : parts === "date" ? date : `${sport}, ${date}`;
 
 /** Draws `img` like CSS `object-fit: cover`, framed by the crop (focal point + zoom). */
 export function drawCover(
@@ -413,8 +415,8 @@ export function renderCard(
     h: bh / h,
   });
 
-  // Each element is prepared as a closure so it can be drawn in the user's stacking
-  // order, after the automatic layout has been measured in the natural reading order.
+  // Each element is prepared as a closure so it can be drawn in the fixed stacking order,
+  // after the automatic layout has been measured in the natural reading order.
   const layers = new Map<LayerKey, () => void>();
 
   // --- Title ---
@@ -431,7 +433,11 @@ export function renderCard(
     const metaStyle = styleOf("meta");
     const k = sizeOf(metaStyle);
     const metaFont = `${weightOf(metaStyle, 500)} ${32 * k}px ${familyOf(metaStyle, BODY)}`;
-    const meta = `${sportLabel(a.sportType, opts.t)}, ${formatDate(a.startDate, opts.t)}`;
+    const metaText = metaLabel(
+      opts.metaParts,
+      sportLabel(a.sportType, opts.t),
+      formatDate(a.startDate, opts.t),
+    );
     const mx = metaStyle.pos ? metaStyle.pos.x * w : PL;
     const my = metaStyle.pos ? metaStyle.pos.y * h : top;
     layers.set("meta", () =>
@@ -439,8 +445,8 @@ export function renderCard(
         ctx.font = metaFont;
         ctx.fillStyle = metaStyle.color ?? bg.text;
         ctx.globalAlpha = metaStyle.color ? 1 : 0.8;
-        ctx.fillText(meta, mx, my + 32 * k);
-        texts.meta = toBox(mx, my, ctx.measureText(meta).width, 40 * k);
+        ctx.fillText(metaText, mx, my + 32 * k);
+        texts.meta = toBox(mx, my, ctx.measureText(metaText).width, 40 * k);
         ctx.globalAlpha = 1;
       }),
     );
@@ -549,12 +555,10 @@ export function renderCard(
   // --- Route ---
   const autoBox: RouteBox = { x: PL / w, y: top / h, w: (w - PL - PR) / w, h: (bottom - top - 24) / h };
   const routeBox = opts.routeBox ?? autoBox;
-  const order = layerOrder(opts.order);
   const result: RenderResult = {
     complete: true,
     routeBox,
     texts,
-    order,
     brandBox: { x: 0, y: 0, w: 0, h: 0 },
     creditBox: { x: 0, y: 0, w: 0, h: 0 },
     brandInset: { x: 0, y: 0 },
@@ -662,7 +666,9 @@ export function renderCard(
   }
 
   // --- Background ---
-  if (hasPhoto || hasVideo) {
+  if (hooks.layoutOnly) {
+    // Nothing to paint: only the boxes matter
+  } else if (hasPhoto || hasVideo) {
     // A video is not drawn here: the canvas stays transparent under the veil (see CardOptions.video)
     if (photo) drawCover(ctx, photo, w, h, slide?.crop);
     // Dark veil at the top and bottom, where the title and the stats sit
@@ -693,7 +699,10 @@ export function renderCard(
   }
 
   // Draw deepest first
-  for (const key of order) layers.get(key)?.();
+  for (const key of DRAW_ORDER) {
+    if (hooks.layoutOnly && key === "route") continue;
+    layers.get(key)?.();
+  }
 
   // --- Credits: always on top, never reordered nor hidden ---
   // "Powered by Strava" stands alone in its corner with clear space around it (Strava brand
