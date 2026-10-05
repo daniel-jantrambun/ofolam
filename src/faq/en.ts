@@ -120,6 +120,13 @@ export const faqEn: FaqDoc = {
           ],
         },
         {
+          q: "I spotted a mistake in a translation. What can I do?",
+          a: [
+            "Thank you for telling us! Send an email to {email} with the wrong text and the language, and we will fix it.",
+            "If you feel brave, you can fix it yourself: the texts live in the src/i18n and src/faq folders of the project on GitHub (daniel-jantrambun/ofolam). Open a pull request and we will merge it.",
+          ],
+        },
+        {
           q: "Is Ofolam free?",
           coffee: "If you like it, you can support the project:",
           a: ["Yes, free and without ads. It is an independent project, not affiliated with Strava."],

@@ -111,6 +111,13 @@ export const faqEs: FaqDoc = {
           ],
         },
         {
+          q: "He visto un error en una traducción. ¿Qué puedo hacer?",
+          a: [
+            "¡Gracias por avisarnos! Escribe a {email} indicando el texto incorrecto y el idioma, y lo corregiremos.",
+            "Si te sientes valiente, puedes corregirlo tú mismo: los textos están en las carpetas src/i18n y src/faq del proyecto en GitHub (daniel-jantrambun/ofolam). Abre una pull request y la fusionaremos.",
+          ],
+        },
+        {
           q: "¿Ofolam es gratis?",
           coffee: "Si te gusta, puedes apoyar el proyecto:",
           a: ["Sí, gratis y sin publicidad. Es un proyecto independiente, sin relación con Strava."],
