@@ -15,7 +15,7 @@ export const it: Dictionary = {
     gotIt: "Ho capito",
   },
   login: {
-    title: "La tua uscita, in un'immagine.",
+    title: "Ogni sforzo, in un'immagine.",
     subtitle:
       "Scegli un'attività Strava, tieni le statistiche che contano e condividi l'immagine come storia.",
     connect: "Connetti con Strava",

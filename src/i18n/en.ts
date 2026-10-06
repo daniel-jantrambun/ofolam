@@ -13,7 +13,7 @@ export const en = {
     gotIt: "Got it",
   },
   login: {
-    title: "Your ride, in one picture.",
+    title: "Every effort, in one picture.",
     subtitle: "Pick a Strava activity, keep the stats that matter and share the visual as a story.",
     connect: "Connect with Strava",
     doneElsewhere: "You're signed in. You can go back to the Ofolam app.",

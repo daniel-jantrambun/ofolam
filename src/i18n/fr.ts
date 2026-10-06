@@ -15,7 +15,7 @@ export const fr: Dictionary = {
     gotIt: "Compris",
   },
   login: {
-    title: "Ta sortie, en une image.",
+    title: "Chaque effort, en une image.",
     subtitle: "Choisis une activité Strava, garde les stats qui comptent et partage le visuel en story.",
     connect: "Se connecter avec Strava",
     doneElsewhere: "Connexion réussie. Tu peux revenir dans l'app Ofolam.",

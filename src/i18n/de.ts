@@ -15,7 +15,7 @@ export const de: Dictionary = {
     gotIt: "Verstanden",
   },
   login: {
-    title: "Deine Tour, in einem Bild.",
+    title: "Jede Leistung, in einem Bild.",
     subtitle: "Wähle eine Strava-Aktivität, behalte die Werte, die zählen, und teile das Bild als Story.",
     connect: "Mit Strava verbinden",
     doneElsewhere: "Du bist angemeldet. Du kannst zur Ofolam-App zurückkehren.",
