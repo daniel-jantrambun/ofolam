@@ -15,7 +15,7 @@ export const es: Dictionary = {
     gotIt: "Entendido",
   },
   login: {
-    title: "Tu salida, en una imagen.",
+    title: "Cada esfuerzo, en una imagen.",
     subtitle:
       "Elige una actividad de Strava, quédate con las estadísticas que importan y comparte el visual como historia.",
     connect: "Conectar con Strava",

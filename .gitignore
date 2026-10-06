@@ -7,3 +7,4 @@ dev-dist
 .harness/
 .vscode/
 design/*
+promo-video/*
