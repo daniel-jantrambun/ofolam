@@ -17,6 +17,8 @@ export type Activity = {
   averageSpeed: number;
   averageWatts: number | null;
   averageCadence: number | null;
+  averageHeartrate: number | null;
+  calories: number | null;
   polyline: string | null;
 };
 

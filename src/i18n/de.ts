@@ -235,8 +235,11 @@ export const de: Dictionary = {
     elevation: "Höhenmeter",
     totalTime: "Gesamtzeit",
     power: "Leistung",
-    cadence: "Trittfrequenz",
+    cadence: "Kadenz",
+    heartrate: "Puls",
+    calories: "Kalorien",
   },
+  cadenceUnits: { rpm: "U/min", steps: "Schritte/min", strokes: "Züge/min" },
   sports: {
     Run: "Lauf",
     TrailRun: "Trailrun",

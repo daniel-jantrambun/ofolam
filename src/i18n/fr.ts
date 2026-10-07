@@ -233,7 +233,10 @@ export const fr: Dictionary = {
     totalTime: "Temps total",
     power: "Puissance",
     cadence: "Cadence",
+    heartrate: "Cardio",
+    calories: "Calories",
   },
+  cadenceUnits: { rpm: "tr/min", steps: "pas/min", strokes: "mvts/min" },
   sports: {
     Run: "Course",
     TrailRun: "Trail",

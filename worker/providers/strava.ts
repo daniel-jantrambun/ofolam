@@ -29,6 +29,9 @@ type StravaActivity = {
   average_speed: number;
   average_watts?: number;
   average_cadence?: number;
+  average_heartrate?: number;
+  /** Only in the activity detail, not in the list. */
+  calories?: number;
   map?: { summary_polyline?: string | null; polyline?: string | null };
 };
 
@@ -45,6 +48,8 @@ const toActivity = (a: StravaActivity): Activity => ({
   averageSpeed: a.average_speed,
   averageWatts: a.average_watts ?? null,
   averageCadence: a.average_cadence ?? null,
+  averageHeartrate: a.average_heartrate ?? null,
+  calories: a.calories ?? null,
   polyline: a.map?.polyline || a.map?.summary_polyline || null,
 });
 

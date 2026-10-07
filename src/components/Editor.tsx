@@ -112,6 +112,8 @@ const formats = (t: Dictionary): { id: Format; label: string }[] => [
   { id: "square", label: t.editor.square },
   { id: "landscape", label: t.editor.landscape },
 ];
+/** Stats that depend on a sensor or on Strava's estimate: listed only when the activity has them. */
+const OPTIONAL_STATS = ["power", "cadence", "heartrate", "calories"] as const;
 
 export default function Editor({ subject, onBack, onSessionLost }: Props) {
   const subjectKey = subject.kind === "single" ? String(subject.id) : subject.ids.join("-");
@@ -921,11 +923,11 @@ export default function Editor({ subject, onBack, onSessionLost }: Props) {
         { id: "time", label: t.stats.time },
         { id: "pace", label: paceLabel },
         { id: "elevation", label: t.stats.elevation },
-        // Rides with a power meter / cadence sensor
-        ...(activity && hasStat(activity, "power") ? [{ id: "power" as const, label: t.stats.power }] : []),
-        ...(activity && hasStat(activity, "cadence")
-          ? [{ id: "cadence" as const, label: t.stats.cadence }]
-          : []),
+        // Sensor-based stats, offered only when the activity carries them
+        ...OPTIONAL_STATS.filter((id) => activity && hasStat(activity, id)).map((id) => ({
+          id,
+          label: t.stats[id],
+        })),
       ];
 
   const UndoRedo = ({ size = "sm" }: { size?: "sm" | "nav" }) => {

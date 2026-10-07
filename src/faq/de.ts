@@ -118,6 +118,13 @@ export const faqDe: FaqDoc = {
           ],
         },
         {
+          q: "Ich hätte gern eine neue Funktion oder einen anderen Wert. Was kann ich tun?",
+          a: [
+            "Schreib an {email} und beschreibe, was du dir wünschst (einen Wert, ein Layout, ein Format…) und wofür du es nutzen würdest. Jede Anfrage wird gelesen, und die nützlichsten landen in der App.",
+            "Wenn du mutig bist, kannst du es selbst entwickeln: Der Code ist Open Source auf GitHub (daniel-jantrambun/ofolam). Öffne einen Pull Request, und wir sehen ihn uns an.",
+          ],
+        },
+        {
           q: "Ist Ofolam kostenlos?",
           coffee: "Wenn es dir gefällt, kannst du das Projekt unterstützen:",
           a: [

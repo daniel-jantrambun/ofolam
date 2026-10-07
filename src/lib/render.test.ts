@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   activeSlide,
+  type CardActivity,
   type CardOptions,
   colorsToAllSlides,
   DEFAULT_TEXT_STYLE,
+  hasStat,
   metaLabel,
   newSlide,
   setColors,
@@ -81,5 +83,21 @@ describe("per-slide colors", () => {
     expect(o.slides[1].colors).toEqual(o.slides[0].colors);
     expect(o.slides[1].colors.texts).not.toBe(o.slides[0].colors.texts);
     expect(o.slides[1].colors.route).toBe("#ff0000");
+  });
+});
+
+describe("hasStat", () => {
+  const a = (over: Partial<CardActivity>): CardActivity =>
+    ({ sportType: "Run", averageHeartrate: null, calories: null, ...over }) as CardActivity;
+
+  it("hides heart rate and calories when the activity lacks them", () => {
+    expect(hasStat(a({}), "heartrate")).toBe(false);
+    expect(hasStat(a({}), "calories")).toBe(false);
+    expect(hasStat(a({ calories: 0 }), "calories")).toBe(false);
+  });
+
+  it("offers them when present", () => {
+    expect(hasStat(a({ averageHeartrate: 150 }), "heartrate")).toBe(true);
+    expect(hasStat(a({ calories: 420 }), "calories")).toBe(true);
   });
 });
