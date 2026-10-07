@@ -3,6 +3,8 @@ import type { Activity } from "./api";
 
 const PACE_SPORTS = new Set(["Run", "TrailRun", "VirtualRun", "Walk", "Hike"]);
 const SWIM_SPORTS = new Set(["Swim"]);
+/** Cadence counted in strokes per minute (Strava sends it as is). */
+const STROKE_SPORTS = new Set(["Swim", "Rowing", "VirtualRow"]);
 
 export const usesPace = (a: Activity) => PACE_SPORTS.has(a.sportType) || SWIM_SPORTS.has(a.sportType);
 
@@ -49,6 +51,31 @@ export function formatPaceOrSpeed(
 export const formatElevation = (a: Activity, t: Dictionary) => ({
   value: nf(t.locale, 0).format(a.elevation),
   unit: "m",
+});
+
+/**
+ * Average cadence in the unit of the sport. Strava sends rides in rpm and swims/rows in strokes
+ * per minute, but runs in steps of ONE leg: doubled here to get the usual steps per minute.
+ */
+export function formatCadence(a: Activity, t: Dictionary): { value: string; unit: string } {
+  const raw = a.averageCadence ?? 0;
+  if (PACE_SPORTS.has(a.sportType)) {
+    return { value: nf(t.locale, 0).format(raw * 2), unit: t.cadenceUnits.steps };
+  }
+  if (STROKE_SPORTS.has(a.sportType)) {
+    return { value: nf(t.locale, 0).format(raw), unit: t.cadenceUnits.strokes };
+  }
+  return { value: nf(t.locale, 0).format(raw), unit: t.cadenceUnits.rpm };
+}
+
+export const formatHeartrate = (a: Activity, t: Dictionary) => ({
+  value: nf(t.locale, 0).format(a.averageHeartrate ?? 0),
+  unit: "bpm",
+});
+
+export const formatCalories = (a: Activity, t: Dictionary) => ({
+  value: nf(t.locale, 0).format(a.calories ?? 0),
+  unit: "kcal",
 });
 
 export const formatDate = (iso: string, t: Dictionary) =>

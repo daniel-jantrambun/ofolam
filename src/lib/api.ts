@@ -10,7 +10,9 @@ export type Activity = {
   elevation: number; // meters
   averageSpeed: number; // m/s
   averageWatts?: number | null; // rides with a power meter (or Strava's estimate)
-  averageCadence?: number | null; // rpm for rides
+  averageCadence?: number | null; // as sent by Strava: rpm for rides, steps of ONE leg for runs
+  averageHeartrate?: number | null; // bpm, activities recorded with a heart rate sensor
+  calories?: number | null; // kcal, only in the activity detail
   polyline: string | null;
 };
 

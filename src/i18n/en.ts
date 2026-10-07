@@ -230,7 +230,10 @@ export const en = {
     totalTime: "Total time",
     power: "Power",
     cadence: "Cadence",
+    heartrate: "Heart rate",
+    calories: "Calories",
   },
+  cadenceUnits: { rpm: "rpm", steps: "spm", strokes: "strokes/min" },
   sports: {
     Run: "Run",
     TrailRun: "Trail run",

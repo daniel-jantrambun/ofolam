@@ -118,6 +118,13 @@ export const faqFr: FaqDoc = {
           ],
         },
         {
+          q: "J'aimerais une nouvelle fonctionnalité ou une autre métrique. Comment faire ?",
+          a: [
+            "Écris à {email} en décrivant ce que tu aimerais (une métrique, une mise en page, un format…) et comment tu t'en servirais. Chaque demande est lue, et les plus utiles rejoignent l'app.",
+            "Si tu te sens courageux, tu peux la développer toi-même : le code est open source sur GitHub (daniel-jantrambun/ofolam). Ouvre une pull request et nous l'examinerons.",
+          ],
+        },
+        {
           q: "Ofolam est-il gratuit ?",
           coffee: "Si l'app te plaît, tu peux soutenir le projet :",
           a: ["Oui, gratuit et sans publicité. C'est un projet indépendant, sans lien avec Strava."],

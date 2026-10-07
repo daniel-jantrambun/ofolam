@@ -4,10 +4,13 @@ import { BRAND_RATIO, type BrandColor, brandFile, getBrandLogo } from "./brand";
 import { contrastText, palette, ROUTE_COLORS } from "./colors";
 import { type Crop, DEFAULT_CROP, visibleFrame } from "./crop";
 import {
+  formatCadence,
+  formatCalories,
   formatDate,
   formatDistance,
   formatDuration,
   formatElevation,
+  formatHeartrate,
   formatPaceOrSpeed,
   sportLabel,
 } from "./format";
@@ -67,7 +70,15 @@ export const newSlide = (kind: SlideKind, from?: Partial<Slide>): Slide => ({
   id: crypto.randomUUID(),
   kind,
 });
-export type StatKey = "distance" | "time" | "pace" | "elevation" | "power" | "cadence";
+export type StatKey =
+  | "distance"
+  | "time"
+  | "pace"
+  | "elevation"
+  | "power"
+  | "cadence"
+  | "heartrate"
+  | "calories";
 
 export const SIZES: Record<Format, { w: number; h: number }> = {
   story: { w: 1080, h: 1920 },
@@ -124,6 +135,8 @@ export const DRAW_ORDER: LayerKey[] = [
   "stat:elevation",
   "stat:power",
   "stat:cadence",
+  "stat:heartrate",
+  "stat:calories",
   "legs",
 ];
 
@@ -392,14 +405,20 @@ function statFor(
     case "power":
       return { label: t.stats.power, value: String(Math.round(a.averageWatts ?? 0)), unit: "W" };
     case "cadence":
-      return { label: t.stats.cadence, value: String(Math.round(a.averageCadence ?? 0)), unit: "rpm" };
+      return { label: t.stats.cadence, ...formatCadence(a, t) };
+    case "heartrate":
+      return { label: t.stats.heartrate, ...formatHeartrate(a, t) };
+    case "calories":
+      return { label: t.stats.calories, ...formatCalories(a, t) };
   }
 }
 
-/** Whether an activity carries the data a stat needs (power and cadence are not always there). */
+/** Whether an activity carries the data a stat needs (sensor-based stats are not always there). */
 export function hasStat(a: CardActivity, key: StatKey): boolean {
   if (key === "power") return a.averageWatts != null && a.averageWatts > 0;
   if (key === "cadence") return a.averageCadence != null && a.averageCadence > 0;
+  if (key === "heartrate") return a.averageHeartrate != null && a.averageHeartrate > 0;
+  if (key === "calories") return a.calories != null && a.calories > 0;
   return true;
 }
 
