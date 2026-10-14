@@ -27,7 +27,7 @@ export const legalEn: LegalContent = {
       {
         heading: "What we collect",
         paragraphs: [
-          "When you sign in with Strava, we receive and store your Strava athlete id, first name and country, together with the access and refresh tokens Strava issues to us. Tokens are encrypted before storage and only used to read your activities on your behalf.",
+          "When you sign in with Strava, we receive your Strava profile. We store only your country and the access and refresh tokens Strava issues to us. Your account is identified by a pseudonymous key derived from your Strava athlete id with a secret key; the athlete id itself is not stored. Tokens are encrypted before storage and only used to read your activities on your behalf.",
           "Your activities (name, sport, date, distance, duration, elevation, average speed and GPS route) are fetched from Strava when you use the app. They are cached for at most 24 hours on our side to stay within Strava's rate limits, and on your device so the app opens quickly.",
           "Photos you add to a picture never leave your device: the picture is drawn in your browser. The map background, when enabled, is fetched from a third-party tile server (Stadia Maps by default), which then receives the area of your route and your IP address, like any online map.",
           "We use no analytics, no advertising and no tracking. A cookie stores your language choice; your browser's local storage keeps your session, theme and a cache of your activities.",

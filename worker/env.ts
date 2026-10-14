@@ -5,6 +5,8 @@ export type Env = {
   STRAVA_CLIENT_ID: string;
   STRAVA_CLIENT_SECRET: string;
   TOKEN_KEY: string;
+  /** HMAC key turning provider athlete ids into the pseudonymous keys stored in D1 and KV. */
+  ATHLETE_ID_KEY: string;
   /** Local debugging only (`.dev.vars`): "1" keeps raw provider responses in KV under `debug:`. */
   DEBUG_STRAVA?: string;
 };

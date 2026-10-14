@@ -11,7 +11,7 @@ export const faqIt: FaqDoc = {
         {
           q: "Che cosa conserva Ofolam su di me?",
           a: [
-            "Il tuo identificativo atleta Strava, il tuo nome e il tuo paese, oltre ai token che Strava ci fornisce per leggere le tue attività, cifrati. Vengono conservati anche i modelli che salvi.",
+            "Il tuo paese e i token che Strava ci fornisce per leggere le tue attività, cifrati. Il tuo account è identificato da una chiave pseudonima derivata dal tuo identificativo atleta Strava; l'identificativo stesso non viene conservato. Vengono conservati anche i modelli che salvi.",
             "Non ci sono statistiche di utilizzo, pubblicità o tracciamento.",
           ],
         },

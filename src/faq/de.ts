@@ -11,7 +11,7 @@ export const faqDe: FaqDoc = {
         {
           q: "Was speichert Ofolam über mich?",
           a: [
-            "Deine Strava-Athleten-ID, deinen Vornamen und dein Land sowie die Tokens, die Strava uns zum Lesen deiner Aktivitäten gibt, verschlüsselt. Auch die Vorlagen, die du speicherst, werden aufbewahrt.",
+            "Dein Land und die Tokens, die Strava uns zum Lesen deiner Aktivitäten gibt, verschlüsselt. Dein Konto wird über einen pseudonymen Schlüssel erkannt, der aus deiner Strava-Athleten-ID abgeleitet wird; die ID selbst wird nicht gespeichert. Auch die Vorlagen, die du speicherst, werden aufbewahrt.",
             "Es gibt keine Analyse-Tools, keine Werbung und kein Tracking.",
           ],
         },

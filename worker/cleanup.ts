@@ -29,10 +29,10 @@ export async function cleanup(env: Env): Promise<{ sessions: number; athletes: n
 }
 
 /** Deletes an athlete and all their sessions (sign-out of the last session, revoked access). */
-export async function forgetAthlete(env: Env, provider: string, athleteId: number) {
+export async function forgetAthlete(env: Env, provider: string, athleteKey: string) {
   await env.DB.batch([
-    env.DB.prepare("DELETE FROM sessions WHERE provider = ? AND athlete_id = ?").bind(provider, athleteId),
-    env.DB.prepare("DELETE FROM templates WHERE provider = ? AND athlete_id = ?").bind(provider, athleteId),
-    env.DB.prepare("DELETE FROM athletes WHERE provider = ? AND id = ?").bind(provider, athleteId),
+    env.DB.prepare("DELETE FROM sessions WHERE provider = ? AND athlete_id = ?").bind(provider, athleteKey),
+    env.DB.prepare("DELETE FROM templates WHERE provider = ? AND athlete_id = ?").bind(provider, athleteKey),
+    env.DB.prepare("DELETE FROM athletes WHERE provider = ? AND id = ?").bind(provider, athleteKey),
   ]);
 }

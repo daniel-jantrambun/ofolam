@@ -17,7 +17,7 @@ export const legalFr: LegalContent = {
       {
         heading: "Ce que nous collectons",
         paragraphs: [
-          "Lorsque vous vous connectez avec Strava, nous recevons et stockons votre identifiant d'athlète Strava, votre prénom et votre pays, ainsi que les jetons d'accès que Strava nous délivre. Ces jetons sont chiffrés avant stockage et servent uniquement à lire vos activités pour votre compte.",
+          "Lorsque vous vous connectez avec Strava, nous recevons votre profil Strava. Nous ne stockons que votre pays et les jetons d'accès que Strava nous délivre. Votre compte est identifié par une clé pseudonyme dérivée de votre identifiant d'athlète Strava à l'aide d'une clé secrète ; l'identifiant lui-même n'est pas stocké. Ces jetons sont chiffrés avant stockage et servent uniquement à lire vos activités pour votre compte.",
           "Vos activités (nom, sport, date, distance, durée, dénivelé, vitesse moyenne et tracé GPS) sont récupérées auprès de Strava quand vous utilisez l'app. Elles sont mises en cache au plus 24 heures de notre côté, pour respecter les quotas de Strava, et sur votre appareil pour que l'app s'ouvre vite.",
           "Les photos que vous ajoutez à une image ne quittent jamais votre appareil : l'image est dessinée dans votre navigateur. Le fond de carte, quand il est activé, est chargé depuis un serveur de tuiles tiers (Stadia Maps par défaut), qui reçoit alors la zone de votre parcours et votre adresse IP, comme toute carte en ligne.",
           "Nous n'utilisons ni mesure d'audience, ni publicité, ni traceur. Un cookie mémorise votre choix de langue ; le stockage local de votre navigateur conserve votre session, votre thème et un cache de vos activités.",
