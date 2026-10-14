@@ -27,7 +27,7 @@ export const hasPendingLogin = () => !!localStorage.getItem(STATE_KEY);
 /** Sign-in providers the worker supports (see worker/providers). */
 export type ProviderName = "strava";
 
-export type Me = { provider: ProviderName; id: number; firstname: string | null; country: string | null };
+export type Me = { provider: ProviderName; country: string | null };
 
 /** `code` is an error code translated by the UI (see `src/i18n`, `errors`). */
 export class ApiError extends Error {

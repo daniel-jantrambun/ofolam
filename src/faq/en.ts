@@ -22,7 +22,7 @@ export const faqEn: FaqDoc = {
         {
           q: "What does Ofolam store about me?",
           a: [
-            "Your Strava athlete id, first name and country, and the tokens Strava gives us to read your activities, encrypted. The templates you save are stored too.",
+            "Your country and the tokens Strava gives us to read your activities, encrypted. Your account is identified by a pseudonymous key derived from your Strava athlete id; the id itself is not stored. The templates you save are stored too.",
             "There is no analytics, no advertising and no tracking.",
           ],
         },

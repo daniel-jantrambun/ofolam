@@ -23,7 +23,7 @@ to other users.
 
 1. Create the **dev** Strava app (callback domain `localhost`), see above.
 2. Create `.dev.vars` from `.dev.vars.example` with the dev app's client id and secret
-   (`TOKEN_KEY`: `openssl rand -base64 32`).
+   (`TOKEN_KEY` and `ATHLETE_ID_KEY`: two distinct values from `openssl rand -base64 32`).
 3. Create the D1 database and copy its `database_id` into `wrangler.jsonc`:
    ```sh
    pnpm wrangler d1 create ofolam
@@ -49,6 +49,7 @@ First deployment, from your machine (the CI takes over afterwards):
    ```sh
    pnpm wrangler secret put STRAVA_CLIENT_SECRET   # production app secret
    pnpm wrangler secret put TOKEN_KEY              # never change it afterwards: it encrypts stored tokens
+   pnpm wrangler secret put ATHLETE_ID_KEY         # never change it afterwards: it keys stored athletes
    ```
 3. Apply the schema and deploy:
    ```sh
@@ -67,7 +68,7 @@ settings:
 - Variables (optional, bundled into the client): `VITE_COFFEE_URL`, `VITE_LEGAL_NAME`,
   `VITE_CONTACT_EMAIL`, `VITE_TILES_LIGHT`, `VITE_TILES_DARK`, `VITE_TILES_ATTRIBUTION`.
 
-Worker secrets (`STRAVA_CLIENT_SECRET`, `TOKEN_KEY`) are not handled by the workflow: set them once
+Worker secrets (`STRAVA_CLIENT_SECRET`, `TOKEN_KEY`, `ATHLETE_ID_KEY`) are not handled by the workflow: set them once
 with `pnpm wrangler secret put`, they persist across deployments.
 
 ## Map tiles (Stadia Maps)

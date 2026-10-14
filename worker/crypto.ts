@@ -1,5 +1,6 @@
-// AES-GCM encryption of the Strava tokens stored in D1.
+// AES-GCM encryption of the Strava tokens stored in D1, and HMAC pseudonymisation of athlete ids.
 let cachedKey: Promise<CryptoKey> | null = null;
+let cachedHmacKey: Promise<CryptoKey> | null = null;
 
 function b64ToBytes(b64: string): Uint8Array {
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -39,11 +40,38 @@ export async function decrypt(payload: string, keyB64: string): Promise<string> 
   return new TextDecoder().decode(pt);
 }
 
+/** base64url without padding, safe in KV keys and URLs. */
+const toB64Url = (bytes: Uint8Array) =>
+  bytesToB64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+function getHmacKey(rawB64: string): Promise<CryptoKey> {
+  cachedHmacKey ??= crypto.subtle.importKey(
+    "raw",
+    b64ToBytes(rawB64),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  return cachedHmacKey;
+}
+
+/**
+ * Pseudonymous athlete key: HMAC-SHA256 of `provider:id` under a secret key.
+ * Deterministic (the same athlete always gets the same key, so a new sign-in finds their row),
+ * but the provider's athlete id cannot be recovered from D1 or KV without the secret.
+ * A plain hash would not do: provider ids are small sequential integers, trivially brute-forced.
+ */
+export async function athleteKey(provider: string, id: number, keyB64: string): Promise<string> {
+  const mac = await crypto.subtle.sign(
+    "HMAC",
+    await getHmacKey(keyB64),
+    new TextEncoder().encode(`${provider}:${id}`),
+  );
+  return toB64Url(new Uint8Array(mac));
+}
+
 export function randomToken(bytes = 32): string {
-  return bytesToB64(crypto.getRandomValues(new Uint8Array(bytes)))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  return toB64Url(crypto.getRandomValues(new Uint8Array(bytes)));
 }
 
 export async function sha256(input: string): Promise<string> {

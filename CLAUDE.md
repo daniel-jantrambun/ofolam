@@ -11,7 +11,8 @@ Single package, no monorepo. See `README.md` for setup, deployment and how the a
   (`src/lib/render.ts`); the editor UI lives in `src/components/`.
 - **API** (`worker/`): Cloudflare Worker with Hono. OAuth with Strava, token refresh, Strava proxy,
   KV cache. Runs inside the Vite dev server through `@cloudflare/vite-plugin`.
-- **Storage**: D1 (tokens, sessions, OAuth states), KV (cache of Strava responses).
+- **Storage**: D1 (tokens, sessions, OAuth states), KV (cache of Strava responses). Athletes are keyed by
+  an HMAC of their provider id (`athleteKey` in `worker/crypto.ts`); the raw id is never stored.
 - **i18n**: `src/i18n/` (English + French). Every user-facing string goes through the dictionaries;
   `fr.ts` is typed against `en.ts`, so a missing key fails the build.
 

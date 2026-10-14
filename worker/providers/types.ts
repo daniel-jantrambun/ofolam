@@ -24,7 +24,8 @@ export type Activity = {
 
 export type Tokens = { accessToken: string; refreshToken: string; expiresAt: number };
 
-export type AthleteProfile = { id: number; firstname: string | null; country: string | null };
+/** `id` is the provider's athlete id: only seen at sign-in, it is never stored (see `athleteKey`). */
+export type AthleteProfile = { id: number; country: string | null };
 
 /** Outcome of an OAuth callback: either a signed-in athlete, or a reason shown by the PWA. */
 export type CallbackResult =
@@ -43,6 +44,7 @@ export interface Provider {
   handleCallback(env: Env, query: Record<string, string>): Promise<CallbackResult>;
   /** Refreshes an expired access token. */
   refresh(env: Env, refreshToken: string): Promise<Tokens>;
-  listActivities(env: Env, athleteId: number, page: number): Promise<Activity[]>;
-  getActivity(env: Env, athleteId: number, id: string): Promise<Activity>;
+  /** `athleteKey` is the pseudonymous key of the athlete (see `../crypto.ts`), not the provider id. */
+  listActivities(env: Env, athleteKey: string, page: number): Promise<Activity[]>;
+  getActivity(env: Env, athleteKey: string, id: string): Promise<Activity>;
 }

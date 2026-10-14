@@ -26,7 +26,8 @@ export async function cached<T>(
   return value;
 }
 
-export const listKey = (provider: ProviderName, athleteId: number, page: number) =>
-  `activities:${provider}:${athleteId}:p${page}`;
-export const activityKey = (provider: ProviderName, athleteId: number, id: string | number) =>
-  `activity:${provider}:${athleteId}:${id}`;
+// Keyed by the pseudonymous athlete key (see crypto.ts), never by the provider's athlete id
+export const listKey = (provider: ProviderName, athleteKey: string, page: number) =>
+  `activities:${provider}:${athleteKey}:p${page}`;
+export const activityKey = (provider: ProviderName, athleteKey: string, id: string | number) =>
+  `activity:${provider}:${athleteKey}:${id}`;

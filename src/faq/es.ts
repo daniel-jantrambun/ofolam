@@ -11,7 +11,7 @@ export const faqEs: FaqDoc = {
         {
           q: "¿Qué guarda Ofolam sobre mí?",
           a: [
-            "Tu identificador de atleta de Strava, tu nombre y tu país, además de los tokens que Strava nos entrega para leer tus actividades, cifrados. También se guardan las plantillas que creas.",
+            "Tu país y los tokens que Strava nos entrega para leer tus actividades, cifrados. Tu cuenta se identifica con una clave seudónima derivada de tu identificador de atleta de Strava; el identificador en sí no se guarda. También se guardan las plantillas que creas.",
             "No hay analítica, ni publicidad, ni rastreo.",
           ],
         },

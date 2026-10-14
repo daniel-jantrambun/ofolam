@@ -7,13 +7,13 @@ const SCOPE = "read,activity:read_all";
 
 /** Raw responses kept for inspection when DEBUG_STRAVA=1 (24 h, local dev only). */
 const DEBUG_TTL_S = 24 * 60 * 60;
-export const debugKey = (athleteId: number, path: string) => `debug:strava:${athleteId}:${path}`;
+export const debugKey = (athleteKey: string, path: string) => `debug:strava:${athleteKey}:${path}`;
 
 type TokenResponse = {
   access_token: string;
   refresh_token: string;
   expires_at: number;
-  athlete?: { id: number; firstname?: string; country?: string | null };
+  athlete?: { id: number; country?: string | null };
 };
 
 type StravaActivity = {
@@ -74,8 +74,8 @@ async function exchange(env: Env, params: Record<string, string>): Promise<Token
   return res.json();
 }
 
-async function get<T>(env: Env, athleteId: number, path: string): Promise<T> {
-  const token = await getAccessToken(env, strava, athleteId);
+async function get<T>(env: Env, athleteKey: string, path: string): Promise<T> {
+  const token = await getAccessToken(env, strava, athleteKey);
   const res = await fetch(`${BASE}/api/v3${path}`, { headers: { Authorization: `Bearer ${token}` } });
   if (res.status === 429) throw new ProviderError(429, "rate_limited");
   if (res.status === 401) throw new ProviderError(401, "strava_revoked");
@@ -84,8 +84,8 @@ async function get<T>(env: Env, athleteId: number, path: string): Promise<T> {
   if (env.DEBUG_STRAVA === "1") {
     // Keep the untouched payload so it can be inspected with `pnpm debug:strava`
     const raw = await res.text();
-    await env.CACHE.put(debugKey(athleteId, path), raw, { expirationTtl: DEBUG_TTL_S });
-    console.log(`[debug] strava ${path} → ${raw.length} bytes, saved as ${debugKey(athleteId, path)}`);
+    await env.CACHE.put(debugKey(athleteKey, path), raw, { expirationTtl: DEBUG_TTL_S });
+    console.log(`[debug] strava ${path} → ${raw.length} bytes, saved as ${debugKey(athleteKey, path)}`);
     return JSON.parse(raw) as T;
   }
   return res.json();
@@ -116,11 +116,7 @@ export const strava: Provider = {
     if (!t.athlete) return { ok: false, reason: "error" };
     return {
       ok: true,
-      athlete: {
-        id: t.athlete.id,
-        firstname: t.athlete.firstname ?? null,
-        country: t.athlete.country ?? null,
-      },
+      athlete: { id: t.athlete.id, country: t.athlete.country ?? null },
       tokens: toTokens(t),
       scope,
     };
@@ -130,13 +126,13 @@ export const strava: Provider = {
     return toTokens(await exchange(env, { grant_type: "refresh_token", refresh_token: refreshToken }));
   },
 
-  async listActivities(env, athleteId, page) {
-    const raw = await get<StravaActivity[]>(env, athleteId, `/athlete/activities?per_page=20&page=${page}`);
+  async listActivities(env, athleteKey, page) {
+    const raw = await get<StravaActivity[]>(env, athleteKey, `/athlete/activities?per_page=20&page=${page}`);
     return raw.map(toActivity);
   },
 
-  async getActivity(env, athleteId, id) {
+  async getActivity(env, athleteKey, id) {
     // The detail carries `map.polyline`, more precise than the list's summary_polyline
-    return toActivity(await get<StravaActivity>(env, athleteId, `/activities/${id}`));
+    return toActivity(await get<StravaActivity>(env, athleteKey, `/activities/${id}`));
   },
 };

@@ -11,7 +11,7 @@ export const faqFr: FaqDoc = {
         {
           q: "Qu'est-ce qu'Ofolam conserve sur moi ?",
           a: [
-            "Ton identifiant d'athlète Strava, ton prénom et ton pays, ainsi que les jetons que Strava nous remet pour lire tes activités, chiffrés. Les modèles que tu enregistres sont conservés aussi.",
+            "Ton pays et les jetons que Strava nous remet pour lire tes activités, chiffrés. Ton compte est identifié par une clé pseudonyme dérivée de ton identifiant d'athlète Strava ; l'identifiant lui-même n'est pas stocké. Les modèles que tu enregistres sont conservés aussi.",
             "Il n'y a ni mesure d'audience, ni publicité, ni pistage.",
           ],
         },

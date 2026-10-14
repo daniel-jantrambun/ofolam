@@ -4,31 +4,32 @@ import type { AthleteProfile, Provider, Tokens } from "./providers/types";
 
 const REFRESH_MARGIN_S = 120;
 
-/** Stores (or updates) an athlete's encrypted tokens and profile for a provider. */
+/**
+ * Stores (or updates) an athlete's encrypted tokens and profile for a provider.
+ * `athleteKey` is the pseudonymous key from `athleteKey()` (crypto.ts), never the provider id.
+ */
 export async function saveTokens(
   env: Env,
   provider: Provider,
-  athleteId: number,
+  athleteKey: string,
   t: Tokens,
-  extra?: Partial<AthleteProfile> & { scope?: string | null },
+  extra?: Pick<Partial<AthleteProfile>, "country"> & { scope?: string | null },
 ) {
   const [access, refresh] = await Promise.all([
     encrypt(t.accessToken, env.TOKEN_KEY),
     encrypt(t.refreshToken, env.TOKEN_KEY),
   ]);
   await env.DB.prepare(
-    `INSERT INTO athletes (provider, id, firstname, country, access_token, refresh_token, expires_at, scope, updated_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+    `INSERT INTO athletes (provider, id, country, access_token, refresh_token, expires_at, scope, updated_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
      ON CONFLICT(provider, id) DO UPDATE SET
-       firstname = COALESCE(?3, firstname),
-       country = COALESCE(?4, country),
-       access_token = ?5, refresh_token = ?6, expires_at = ?7,
-       scope = COALESCE(?8, scope), updated_at = ?9`,
+       country = COALESCE(?3, country),
+       access_token = ?4, refresh_token = ?5, expires_at = ?6,
+       scope = COALESCE(?7, scope), updated_at = ?8`,
   )
     .bind(
       provider.name,
-      athleteId,
-      extra?.firstname ?? null,
+      athleteKey,
       extra?.country ?? null,
       access,
       refresh,
@@ -40,11 +41,11 @@ export async function saveTokens(
 }
 
 /** Returns a valid access token for the athlete at this provider, refreshing it when needed. */
-export async function getAccessToken(env: Env, provider: Provider, athleteId: number): Promise<string> {
+export async function getAccessToken(env: Env, provider: Provider, athleteKey: string): Promise<string> {
   const row = await env.DB.prepare(
     "SELECT access_token, refresh_token, expires_at FROM athletes WHERE provider = ? AND id = ?",
   )
-    .bind(provider.name, athleteId)
+    .bind(provider.name, athleteKey)
     .first<{ access_token: string; refresh_token: string; expires_at: number }>();
   if (!row) throw new ProviderError(401, "unknown_athlete");
 
@@ -55,6 +56,6 @@ export async function getAccessToken(env: Env, provider: Provider, athleteId: nu
   const refreshToken = await decrypt(row.refresh_token, env.TOKEN_KEY);
   const t = await provider.refresh(env, refreshToken);
   // Providers may rotate the refresh token: always store the latest one
-  await saveTokens(env, provider, athleteId, t);
+  await saveTokens(env, provider, athleteKey, t);
   return t.accessToken;
 }

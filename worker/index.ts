@@ -1,13 +1,14 @@
 import { Hono, type MiddlewareHandler } from "hono";
 import { ACTIVITY_TTL_S, activityKey, cached, LIST_TTL_S, listKey } from "./cache";
 import { cleanup, forgetAthlete, LAST_SEEN_STEP_S } from "./cleanup";
-import { randomToken, sha256 } from "./crypto";
+import { athleteKey, randomToken, sha256 } from "./crypto";
 import { type Env, now, ProviderError } from "./env";
 import { getProvider, isProviderName } from "./providers";
 import type { ProviderName } from "./providers/types";
 import { saveTokens } from "./tokens";
 
-type AppEnv = { Bindings: Env; Variables: { athleteId: number; provider: ProviderName } };
+/** `athleteKey` is the pseudonymous key stored in D1 (see crypto.ts), never the provider's athlete id. */
+type AppEnv = { Bindings: Env; Variables: { athleteKey: string; provider: ProviderName } };
 
 const STATE_TTL_S = 10 * 60;
 
@@ -49,8 +50,9 @@ app.get("/auth/:provider/callback", async (c) => {
 
   const result = await provider.handleCallback(c.env, query);
   if (!result.ok) return c.redirect(`/?auth=${result.reason}`);
-  await saveTokens(c.env, provider, result.athlete.id, result.tokens, {
-    firstname: result.athlete.firstname,
+  // The provider's athlete id stops here: only its HMAC is stored
+  const key = await athleteKey(provider.name, result.athlete.id, c.env.ATHLETE_ID_KEY);
+  await saveTokens(c.env, provider, key, result.tokens, {
     country: result.athlete.country,
     scope: result.scope,
   });
@@ -59,7 +61,7 @@ app.get("/auth/:provider/callback", async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare(
       "INSERT INTO sessions (id_hash, provider, athlete_id, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)",
-    ).bind(await sha256(sessionToken), provider.name, result.athlete.id, now(), now()),
+    ).bind(await sha256(sessionToken), provider.name, key, now(), now()),
     c.env.DB.prepare("UPDATE oauth_states SET session_token = ? WHERE state = ?").bind(sessionToken, state),
   ]);
 
@@ -92,9 +94,9 @@ const auth: MiddlewareHandler<AppEnv> = async (c, next) => {
     "SELECT provider, athlete_id, last_seen_at FROM sessions WHERE id_hash = ?",
   )
     .bind(idHash)
-    .first<{ provider: string; athlete_id: number; last_seen_at: number }>();
+    .first<{ provider: string; athlete_id: string; last_seen_at: number }>();
   if (!row || !isProviderName(row.provider)) return c.json({ error: "invalid_session" }, 401);
-  c.set("athleteId", row.athlete_id);
+  c.set("athleteKey", row.athlete_id);
   c.set("provider", row.provider);
   // Keep the session alive for the cleanup, at most one write per day
   if (row.last_seen_at < now() - LAST_SEEN_STEP_S) {
@@ -119,31 +121,29 @@ app.post("/auth/logout", async (c) => {
     .run();
   // Last session gone: forget the athlete and their tokens (they sign in again in one tap)
   const left = await c.env.DB.prepare("SELECT 1 FROM sessions WHERE provider = ? AND athlete_id = ? LIMIT 1")
-    .bind(c.get("provider"), c.get("athleteId"))
+    .bind(c.get("provider"), c.get("athleteKey"))
     .first();
-  if (!left) await forgetAthlete(c.env, c.get("provider"), c.get("athleteId"));
+  if (!left) await forgetAthlete(c.env, c.get("provider"), c.get("athleteKey"));
   return c.json({ ok: true });
 });
 
 app.get("/me", async (c) => {
-  const row = await c.env.DB.prepare(
-    "SELECT provider, id, firstname, country FROM athletes WHERE provider = ? AND id = ?",
-  )
-    .bind(c.get("provider"), c.get("athleteId"))
+  const row = await c.env.DB.prepare("SELECT provider, country FROM athletes WHERE provider = ? AND id = ?")
+    .bind(c.get("provider"), c.get("athleteKey"))
     .first();
   return c.json(row);
 });
 
 app.get("/activities", async (c) => {
   const page = Math.max(1, Number(c.req.query("page") ?? 1) || 1);
-  const athleteId = c.get("athleteId");
+  const key = c.get("athleteKey");
   const provider = getProvider(c.get("provider"));
   const fresh = c.req.query("fresh") === "1";
   const list = await cached(
     c.env,
-    listKey(provider.name, athleteId, page),
+    listKey(provider.name, key, page),
     LIST_TTL_S,
-    () => provider.listActivities(c.env, athleteId, page),
+    () => provider.listActivities(c.env, key, page),
     fresh,
   );
   return c.json(list);
@@ -152,14 +152,14 @@ app.get("/activities", async (c) => {
 app.get("/activities/:id", async (c) => {
   const id = c.req.param("id");
   if (!/^\d+$/.test(id)) return c.json({ error: "invalid_id" }, 400);
-  const athleteId = c.get("athleteId");
+  const key = c.get("athleteKey");
   const provider = getProvider(c.get("provider"));
   const fresh = c.req.query("fresh") === "1";
   const activity = await cached(
     c.env,
-    activityKey(provider.name, athleteId, id),
+    activityKey(provider.name, key, id),
     ACTIVITY_TTL_S,
-    () => provider.getActivity(c.env, athleteId, id),
+    () => provider.getActivity(c.env, key, id),
     fresh,
   );
   return c.json(activity);
@@ -183,7 +183,7 @@ app.get("/templates", async (c) => {
   const { results } = await c.env.DB.prepare(
     "SELECT id, name, options, created_at FROM templates WHERE provider = ? AND athlete_id = ? ORDER BY created_at",
   )
-    .bind(c.get("provider"), c.get("athleteId"))
+    .bind(c.get("provider"), c.get("athleteKey"))
     .all<TemplateRow>();
   return c.json(results.map(rowToTemplate));
 });
@@ -200,21 +200,21 @@ app.post("/templates", async (c) => {
   const count = await c.env.DB.prepare(
     "SELECT count(*) AS n FROM templates WHERE provider = ? AND athlete_id = ?",
   )
-    .bind(c.get("provider"), c.get("athleteId"))
+    .bind(c.get("provider"), c.get("athleteKey"))
     .first<{ n: number }>();
   if ((count?.n ?? 0) >= TEMPLATES_MAX) return c.json({ error: "too_many_templates" }, 409);
   const id = randomToken().slice(0, 16);
   await c.env.DB.prepare(
     "INSERT INTO templates (provider, athlete_id, id, name, options, created_at) VALUES (?, ?, ?, ?, ?, ?)",
   )
-    .bind(c.get("provider"), c.get("athleteId"), id, name, options, now())
+    .bind(c.get("provider"), c.get("athleteKey"), id, name, options, now())
     .run();
   return c.json({ id, name, options: body.options }, 201);
 });
 
 app.delete("/templates/:id", async (c) => {
   await c.env.DB.prepare("DELETE FROM templates WHERE provider = ? AND athlete_id = ? AND id = ?")
-    .bind(c.get("provider"), c.get("athleteId"), c.req.param("id"))
+    .bind(c.get("provider"), c.get("athleteKey"), c.req.param("id"))
     .run();
   return c.json({ ok: true });
 });
@@ -222,8 +222,8 @@ app.delete("/templates/:id", async (c) => {
 app.onError((err, c) => {
   if (err instanceof ProviderError) {
     // Access revoked at the provider: the stored tokens are dead, drop the athlete
-    if (err.code === "strava_revoked" && c.get("provider") && c.get("athleteId")) {
-      c.executionCtx.waitUntil(forgetAthlete(c.env, c.get("provider"), c.get("athleteId")));
+    if (err.code === "strava_revoked" && c.get("provider") && c.get("athleteKey")) {
+      c.executionCtx.waitUntil(forgetAthlete(c.env, c.get("provider"), c.get("athleteKey")));
     }
     return c.json({ error: err.code }, err.status as 401 | 404 | 429 | 502);
   }
